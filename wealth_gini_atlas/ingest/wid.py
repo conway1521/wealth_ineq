@@ -3,32 +3,40 @@
 WID publishes per-country bulk CSVs at
     https://wid.world/bulk_download/
 
-Each file is named ``WID_data_<ISO2>.csv`` (semicolon-delimited) plus a
-companion ``WID_metadata_<ISO2>.csv`` describing units and methods.
-Rows are long-format with the following columns of interest:
+Each file is named ``WID_data_<ISO2>.csv`` (semicolon-delimited) with
+**seven** columns::
 
-    country     ISO-2 code (e.g. "FR", "US", "DE")
-    variable    code (e.g. "ghweal992j", "shweal992j", "ahweal992j")
-    percentile  percentile bracket (e.g. "p0p100", "p90p100", "p99p100",
-                "p0p50") -- shares are stored as a row per bracket
-    year        integer
-    value       float; shares are on a 0..1 scale, Gini on 0..1, money
-                in local currency or, in the "metadata" file's unit, EUR
+    country;variable;percentile;year;value;age;pop
 
-Variable codes used in v0.1
----------------------------
+* ``variable`` is the WID base code, e.g. ``ghwealj992`` (Gini of net
+  personal wealth, equal-split adults).
+* ``age`` is the population age band (we use ``992``, the adult band).
+* ``pop`` is the population-treatment code:
+    - ``j`` = equal-split adults (each adult attributed equal share of
+             household wealth -- WID's headline cross-country basis)
+    - ``i`` = individuals (no household-sharing)
+    - ``f`` = "fiscal" / heads-of-household basis (used for the US wealth
+             series in WID)
 
-* ``ghweal992j``  Gini coefficient of net personal wealth, equal-split adults
-* ``shweal992j``  share of net personal wealth, equal-split adults
-                  (the percentile column selects p90p100, p99p100, p0p50)
-* ``ahweal992j``  average net personal wealth per equal-split adult
-* ``mhweal992j``  median net personal wealth per equal-split adult (when
-                  published)
+Variable structure
+------------------
 
-We use the equal-split-adults (``992j``) population because that is
-WID's headline cross-country wealth basis and what their published Gini
-series is calibrated for. The release file therefore marks
-``unit_of_analysis = per_adult_equal_split`` for all WID-sourced rows.
+The 7-character WID variable codes split as::
+
+    [type][concept][pop][age]
+       g     hweal    j   992    -> Gini, household wealth, equal-split, adults
+       s     hweal    f   992    -> share, household wealth, fiscal, adults
+       a     hweal    j   992    -> average, household wealth, equal-split
+       m     hweal    j   992    -> median, household wealth, equal-split
+
+Pop choice
+----------
+
+Different country files publish different pop variants. We prefer
+``j`` (equal-split adults), fall back to ``f`` (fiscal), then ``i``
+(individuals), per metric, per country-year. The harmonizer carries
+the chosen pop suffix into ``unit_of_analysis`` and ``notes`` so
+downstream users can audit each row.
 
 Network
 -------
@@ -40,9 +48,6 @@ via the ``WGA_WID_LOCAL`` environment variable. The expected layout is::
     $WGA_WID_LOCAL/WID_data_FR.csv
     $WGA_WID_LOCAL/WID_data_US.csv
     ...
-
-You can either point that at an unzipped WID bulk download or run
-``make data-wid`` on a machine with network access.
 """
 
 from __future__ import annotations
@@ -60,15 +65,20 @@ import requests
 log = logging.getLogger(__name__)
 
 WID_BULK_URL = "https://wid.world/bulk_download/wid_all_data.zip"
-WID_PER_COUNTRY_URL_TMPL = "https://wid.world/bulk_download/WID_data_{iso2}.csv"
 
-VARIABLES = {
-    "gini":   "ghweal992j",
-    "share":  "shweal992j",   # combined with percentile column
-    "mean":   "ahweal992j",
-    "median": "mhweal992j",
-}
+# Variable codes for net personal wealth at age == 992 (adult band),
+# in preferred order. We take the first match per (country, year).
+GINI_VARS_ORDERED   = ["ghwealj992", "ghwealf992", "ghweali992"]
+SHARE_VARS_ORDERED  = ["shwealj992", "shwealf992", "shweali992"]
+MEAN_VARS_ORDERED   = ["ahwealj992", "ahwealf992", "ahweali992"]
+MEDIAN_VARS_ORDERED = ["mhwealj992", "mhwealf992", "mhweali992"]
 
+ALL_VARS = set(GINI_VARS_ORDERED
+               + SHARE_VARS_ORDERED
+               + MEAN_VARS_ORDERED
+               + MEDIAN_VARS_ORDERED)
+
+# Percentile brackets we consume for shares
 SHARE_BRACKETS = {
     "top10":    "p90p100",
     "top1":     "p99p100",
@@ -84,12 +94,11 @@ def _raw_dir(root: Path | None = None) -> Path:
 
 def fetch(countries: Iterable[str] | None = None,
           root: Path | None = None,
-          timeout: int = 60) -> Path:
+          timeout: int = 600) -> Path:
     """Download WID bulk data into ``data/raw/wid/``.
 
-    If the ``WGA_WID_LOCAL`` environment variable is set, this is a
-    no-op: the local directory is treated as the source of truth and
-    its path is returned.
+    If ``WGA_WID_LOCAL`` is set, treat that directory as the source of
+    truth and return its path (no network access).
     """
     local = os.environ.get("WGA_WID_LOCAL")
     if local:
@@ -100,18 +109,6 @@ def fetch(countries: Iterable[str] | None = None,
         return p
 
     out = _raw_dir(root)
-    if countries:
-        # Per-country pull -- lighter and easier to debug than the full zip.
-        for iso2 in countries:
-            url = WID_PER_COUNTRY_URL_TMPL.format(iso2=iso2.upper())
-            dest = out / f"WID_data_{iso2.upper()}.csv"
-            log.info("Fetching %s -> %s", url, dest)
-            r = requests.get(url, timeout=timeout)
-            r.raise_for_status()
-            dest.write_bytes(r.content)
-        return out
-
-    # Bulk pull
     log.info("Fetching WID bulk archive %s", WID_BULK_URL)
     r = requests.get(WID_BULK_URL, timeout=timeout, stream=True)
     r.raise_for_status()
@@ -121,6 +118,7 @@ def fetch(countries: Iterable[str] | None = None,
 
 
 def _read_country_csv(path: Path) -> pd.DataFrame:
+    """Read a WID per-country CSV. Returns only the columns we use."""
     df = pd.read_csv(
         path,
         sep=";",
@@ -133,12 +131,48 @@ def _read_country_csv(path: Path) -> pd.DataFrame:
     return df
 
 
-def parse(raw_dir: Path | None = None) -> pd.DataFrame:
-    """Return a tidy wide frame keyed by (country, year) with our v0.1 variables.
+def _pick_first_available(long: pd.DataFrame,
+                          var_list: list[str],
+                          percentile: str) -> pd.DataFrame:
+    """For each (country, year), keep the value from the first variable in
+    ``var_list`` that has data at ``percentile``.
 
-    Columns: country (ISO-2), year, wealth_gini, top10_wealth_share,
-    top1_wealth_share, bottom50_wealth_share, mean_net_wealth,
-    median_net_wealth.
+    Returns a frame with columns: country, year, value, var_used.
+    """
+    pieces = []
+    for prio, var in enumerate(var_list):
+        sub = long[
+            (long["variable"] == var)
+            & (long["percentile"] == percentile)
+            & long["value"].notna()
+        ]
+        if sub.empty:
+            continue
+        sub = sub[["country", "year", "value"]].copy()
+        sub["var_used"] = var
+        sub["_pri"] = prio
+        pieces.append(sub)
+
+    if not pieces:
+        return pd.DataFrame(columns=["country", "year", "value", "var_used"])
+
+    stacked = pd.concat(pieces, ignore_index=True)
+    stacked = stacked.sort_values(["country", "year", "_pri"])
+    stacked = stacked.drop_duplicates(["country", "year"], keep="first")
+    return stacked[["country", "year", "value", "var_used"]].reset_index(drop=True)
+
+
+def parse(raw_dir: Path | None = None) -> pd.DataFrame:
+    """Return a tidy wide frame keyed by (country, year).
+
+    Columns:
+        country, year,
+        wealth_gini_raw_source, gini_var,
+        mean_net_wealth,        mean_var,
+        median_net_wealth,      median_var,
+        top10_wealth_share,     top10_var,
+        top1_wealth_share,      top1_var,
+        bottom50_wealth_share,  bottom50_var.
     """
     raw_dir = Path(raw_dir) if raw_dir else _raw_dir()
     local = os.environ.get("WGA_WID_LOCAL")
@@ -153,48 +187,44 @@ def parse(raw_dir: Path | None = None) -> pd.DataFrame:
         )
 
     frames = []
-    keep_vars = set(VARIABLES.values())
+    n_files_with_data = 0
     for f in files:
         try:
             df = _read_country_csv(f)
         except Exception as exc:  # noqa: BLE001
             log.warning("Skipping %s: %s", f, exc)
             continue
-        df = df[df["variable"].isin(keep_vars)]
-        frames.append(df)
+        df = df[df["variable"].isin(ALL_VARS)]
+        if not df.empty:
+            frames.append(df)
+            n_files_with_data += 1
 
     if not frames:
         raise RuntimeError("WID files were present but contained no target variables")
 
     long = pd.concat(frames, ignore_index=True)
+    log.info("WID long frame: %d rows across %d countries with data",
+             len(long), n_files_with_data)
 
-    # ---- Gini and mean / median: one value per (country, year) -----------
-    def _pivot_scalar(varcode: str, out_col: str) -> pd.DataFrame:
-        s = long[(long["variable"] == varcode) & (long["percentile"].isin(["p0p100", ""])
-                                                  | long["percentile"].isna())]
-        # For Gini and means, WID uses percentile = "p0p100" (whole pop)
-        s = long[(long["variable"] == varcode) & (long["percentile"] == "p0p100")]
-        out = s[["country", "year", "value"]].rename(columns={"value": out_col})
-        return out
+    g   = _pick_first_available(long, GINI_VARS_ORDERED,   "p0p100")
+    m   = _pick_first_available(long, MEAN_VARS_ORDERED,   "p0p100")
+    med = _pick_first_available(long, MEDIAN_VARS_ORDERED, "p0p100")
 
-    gini_df = _pivot_scalar(VARIABLES["gini"], "wealth_gini_raw_source")
-    mean_df = _pivot_scalar(VARIABLES["mean"], "mean_net_wealth")
-    median_df = _pivot_scalar(VARIABLES["median"], "median_net_wealth")
+    g   = g.rename(columns={"value": "wealth_gini_raw_source", "var_used": "gini_var"})
+    m   = m.rename(columns={"value": "mean_net_wealth",         "var_used": "mean_var"})
+    med = med.rename(columns={"value": "median_net_wealth",     "var_used": "median_var"})
 
-    # ---- Shares: one row per percentile bracket --------------------------
-    sh = long[long["variable"] == VARIABLES["share"]]
-    share_frames = []
-    for out_col, bracket in SHARE_BRACKETS.items():
-        sub = sh[sh["percentile"] == bracket]
-        share_frames.append(
-            sub[["country", "year", "value"]].rename(columns={"value": f"{out_col}_wealth_share"})
-        )
+    share_dfs = []
+    for col_name, bracket in SHARE_BRACKETS.items():
+        s = _pick_first_available(long, SHARE_VARS_ORDERED, bracket)
+        s = s.rename(columns={"value": f"{col_name}_wealth_share",
+                              "var_used": f"{col_name}_var"})
+        share_dfs.append(s)
 
-    out = gini_df
-    for f in [mean_df, median_df, *share_frames]:
+    out = g
+    for f in [m, med, *share_dfs]:
         out = out.merge(f, on=["country", "year"], how="outer")
 
-    # Tidy
     out = out.dropna(subset=["country", "year"]).reset_index(drop=True)
     out = out.sort_values(["country", "year"]).reset_index(drop=True)
     return out
