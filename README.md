@@ -12,8 +12,11 @@ Parquet releases.
 
 The project brief lives in `wealth_gini_project_brief.md`; the
 methods note in `docs/methods.md`; the codebook in
-`docs/codebook.yaml`; and the per-geography source priority in
-`docs/source_priority.md`.
+`docs/codebook.yaml`; the per-geography source priority in
+`docs/source_priority.md`; and the maintained running memo of
+future-work ideas (wealth-vs-wellbeing correlations, Wellbeing
+Gini scoping, top-tail-correction flags, etc.) in
+`docs/research_directions.md`.
 
 ## Release roadmap
 
