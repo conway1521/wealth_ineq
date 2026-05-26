@@ -66,21 +66,28 @@ wga build --out-dir data/release
 
 ## Add HFCS (v0.2)
 
-Download HFCS distributional indicators from
-[data.ecb.europa.eu](https://data.ecb.europa.eu/data/data-categories/household-finance-and-consumption-survey)
-and convert them to a CSV with the schema documented in
-`wealth_gini_atlas/ingest/hfcs.py` (one row per `(country, wave)`).
+The ECB publishes per-wave "Statistical Tables" workbooks (XLSX) at
+the [HFCS Network publications page](https://www.ecb.europa.eu/pub/economic-research/research-networks/html/researcher_hfcn.en.html).
+The four current waves (2010 / 2014 / 2017 / 2021) ship in this
+repository under `data/raw/hfcs/`, so `wga build` will pick them up
+automatically: no manual conversion required.
 
-Place the file at `data/raw/hfcs/hfcs_indicators.csv` (or point
-`WGA_HFCS_LOCAL` at it) and re-run `wga build`. The release file will
-then contain Tier A household-basis rows from HFCS alongside the
-Tier B per-adult rows from WID; downstream users filter by
-`source_dataset` or `comparability_tier`.
+The parser reads sheets J4 (Gini, top-5% / top-10% shares), F3
+(negative-wealth share), A1 (median net wealth) and A2 (mean net
+wealth), producing one row per (country, wave) with
+`source_dataset=HFCS`, `unit_of_analysis=household`,
+`comparability_tier=A`, `top_tail_flag=survey_only`. HFCS does not
+publish a top-1% share in this workbook, so that column remains
+null in the release.
 
 ```bash
-wga fetch hfcs                   # prints the schema and exits if missing
-wga build --out-dir data/release # produces the combined release
+wga build --out-dir data/release    # auto-detects HFCS workbooks
+wga coverage data/release/wealth_gini_atlas_v0.2.0.parquet
 ```
+
+If you maintain a hand-curated CSV instead, place it at
+`data/raw/hfcs/hfcs_indicators.csv` (or point `WGA_HFCS_LOCAL` at
+it). The CSV path takes precedence over workbooks.
 
 ## Run the tests
 

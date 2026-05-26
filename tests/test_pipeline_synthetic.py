@@ -21,6 +21,10 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "data" / "fixtures"
 
 def test_end_to_end_with_fixtures(tmp_path, monkeypatch):
     monkeypatch.setenv("WGA_WID_LOCAL", str(FIXTURE_DIR))
+    # Scope this test to the WID synthetic fixtures only. Without this
+    # the pipeline would also pick up the real HFCS workbooks that ship
+    # under data/raw/hfcs/.
+    monkeypatch.setenv("WGA_HFCS_LOCAL", str(tmp_path / "no-hfcs.csv"))
 
     df = build_release()
     assert not df.empty

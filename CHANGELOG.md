@@ -2,11 +2,18 @@
 
 ## v0.2.0 -- unreleased
 
-* HFCS ingest module (`wga fetch hfcs`) reading a tidy CSV from
-  `data/raw/hfcs/hfcs_indicators.csv` (or `WGA_HFCS_LOCAL`). The
-  expected schema is documented in `wealth_gini_atlas/ingest/hfcs.py`
-  and a synthetic fixture for DE/FR/IT/ES across waves 1-4 ships under
-  `data/fixtures/hfcs_indicators.csv`.
+* HFCS ingest module reads the ECB Statistical Tables XLSX
+  workbooks directly. `wga build` auto-detects wave year from
+  filenames and extracts Gini / top-5% / top-10% / negative-wealth
+  share / mean / median net wealth from sheets J4, F3, A1, A2.
+  HFCS does not publish a top-1% share in this workbook, so that
+  column remains null in the release.
+* Workbooks for waves 1-4 (2010 / 2014 / 2017 / 2021) ship under
+  `data/raw/hfcs/` with `.gitignore` exception, so the converter
+  is reproducible offline.
+* Fallback path: a pre-converted tidy CSV at
+  `data/raw/hfcs/hfcs_indicators.csv` (or `WGA_HFCS_LOCAL`)
+  remains supported for users who maintain a hand-curated table.
 * `harmonize/national.py::from_hfcs` produces household-basis Tier A
   rows with `unit_of_analysis=household`, `comparability_tier=A`,
   `top_tail_flag=survey_only`, and `currency=EUR`.
@@ -14,8 +21,12 @@
   country-year may appear under both sources with distinct
   `unit_of_analysis` and `source_dataset` values, preserving the
   natural-key uniqueness invariant.
-* End-to-end test `test_combined_wid_plus_hfcs` covers the two-source
-  merge, schema validation, and the per-source metadata invariants.
+* Tests: `test_combined_wid_plus_hfcs` for the merge,
+  `test_ingest_hfcs_xlsx` for the workbook parser (skips when
+  workbooks not present, e.g. sparse clone).
+* Resolution semantics: when `WGA_HFCS_LOCAL` (or an explicit
+  path) is set, the resolver does *not* fall through to the
+  default raw directory -- tests can scope themselves to fixtures.
 
 ## v0.1.0
 
