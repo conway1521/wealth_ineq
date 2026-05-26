@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Caches
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Raw / interim data are not redistributed; release artifacts ARE checked in
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+
+# OS
+.DS_Store

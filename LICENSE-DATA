@@ -1,0 +1,21 @@
+The release data tables in `data/release/` are distributed under
+Creative Commons Attribution 4.0 International (CC BY 4.0).
+
+https://creativecommons.org/licenses/by/4.0/
+
+You are free to share and adapt the data for any purpose, including
+commercial use, provided you give appropriate credit, link to the
+license, and indicate if changes were made.
+
+Upstream sources retain their own licenses and citation requirements.
+See `docs/source_priority.md` and the `source_dataset` column of the
+release file for the underlying source attached to each observation:
+
+- World Inequality Database (WID): https://wid.world/terms-of-use
+- OECD Wealth Distribution Database: OECD terms of use
+- Eurostat / HFCS: ECB and Eurostat terms of use
+- U.S. Survey of Consumer Finances (SCF): U.S. public domain
+- Distributional Financial Accounts (DFA): U.S. public domain
+
+Users redistributing the dataset must comply with upstream source
+licenses in addition to CC BY 4.0.

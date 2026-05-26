@@ -1,0 +1,135 @@
+# Wealth Gini Atlas -- machine-readable codebook
+# Companion to docs/methods.md. Every release column must appear here.
+
+version: "0.1.0"
+unit_conventions:
+  shares: "fractions on [0, 1] (not percentages)"
+  gini: "0 = perfect equality, 1 = max inequality"
+  wealth_levels: "in source-native currency or EUR PPP; see currency column"
+
+columns:
+  geo_id:
+    type: string
+    description: >
+      ISO 3166-1 alpha-3 country code for country-level rows; NUTS code
+      for EU regional rows; FIPS/ANSI for US state rows.
+    required: true
+  geo_name:
+    type: string
+    description: Human-readable geography name in English.
+    required: true
+  geo_level:
+    type: enum
+    values: [country, nuts2, us_state, region_other]
+    required: true
+  year:
+    type: int32
+    description: Reference year of the observation.
+    required: true
+  wealth_concept:
+    type: enum
+    values: [net_wealth, net_financial_wealth, net_housing_wealth, non_financial_wealth]
+    description: Conceptual wealth measure. v0.1 publishes only net_wealth.
+    required: true
+  wealth_gini:
+    type: float64
+    description: >
+      Headline Gini coefficient of net wealth. Negative net-wealth
+      units are set to zero before computation, so values are in [0, 1].
+    range: [0.0, 1.0]
+    required: true
+  wealth_gini_raw:
+    type: float64
+    description: >
+      Gini before the negative-wealth zero-out rule. Can exceed 1.0;
+      provided for advanced users.
+    required: false
+  negative_wealth_share:
+    type: float64
+    description: Share of units with strictly negative net wealth.
+    range: [0.0, 1.0]
+    required: false
+  mean_net_wealth:
+    type: float64
+    description: Weighted mean net wealth at the population basis below.
+    required: false
+  median_net_wealth:
+    type: float64
+    description: Weighted median net wealth at the population basis below.
+    required: false
+  top10_wealth_share:
+    type: float64
+    description: Wealth share held by the top 10% of the unit basis.
+    range: [0.0, 1.0]
+    required: false
+  top1_wealth_share:
+    type: float64
+    description: Wealth share held by the top 1%.
+    range: [0.0, 1.0]
+    required: false
+  bottom50_wealth_share:
+    type: float64
+    description: >
+      Wealth share held by the bottom 50%. Computed post-zero-out so
+      values are non-negative.
+    range: [0.0, 1.0]
+    required: false
+  unit_of_analysis:
+    type: enum
+    values: [household, per_adult_equal_split, per_adult, individual]
+    description: >
+      The unit on which the distribution is measured. v0.1 (WID) uses
+      per_adult_equal_split; v0.2 (HFCS) and v0.3 (SCF) introduce
+      household-basis series.
+    required: true
+  equivalence_scale:
+    type: enum
+    values: [none, oecd_modified, sqrt]
+    required: true
+  currency:
+    type: string
+    description: Currency of the wealth-level columns (e.g. EUR_PPP, USD).
+    required: false
+  source_dataset:
+    type: enum
+    values: [WID, HFCS, Eurostat, OECD, SCF, DFA, NSO_other, modeled]
+    required: true
+  source_priority:
+    type: enum
+    values: [tier1, tier2]
+    description: >
+      tier1 = preferred backbone source (WID, OECD, HFCS, SCF, DFA).
+      tier2 = supporting / contextual source.
+    required: true
+  comparability_tier:
+    type: enum
+    values: [A, B, C]
+    description: >
+      A: same survey family, strongly harmonized concept (e.g. HFCS).
+      B: same broad concept, different source machinery (e.g. WID).
+      C: modeled, inferred, or partially synthetic (e.g. NUTS2 v1.0).
+    required: true
+  observed_vs_modeled:
+    type: enum
+    values: [observed, imported, modeled, mixed]
+    description: >
+      observed = computed from microdata in this repo;
+      imported = published series ingested verbatim;
+      modeled  = small-area or capitalization model output;
+      mixed    = blend, see notes column.
+    required: true
+  top_tail_flag:
+    type: enum
+    values: [survey_only, admin_enhanced, mixed, unknown]
+    description: >
+      Whether the underlying top-tail estimate uses tax / administrative
+      methods (Saez-Zucman style capitalization) or rests on survey
+      alone. Survey-only series tend to understate top concentration.
+    required: false
+  method_version:
+    type: string
+    description: Pipeline / methodology version that produced the row.
+    required: true
+  notes:
+    type: string
+    required: false
