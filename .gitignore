@@ -16,6 +16,11 @@ venv/
 # Raw / interim data are not redistributed; release artifacts ARE checked in
 data/raw/*
 !data/raw/.gitkeep
+# HFCS publishes its Statistical Tables under terms permitting
+# redistribution; we keep them in-repo so the converter is reproducible
+# without each contributor re-downloading from the ECB.
+!data/raw/hfcs/
+!data/raw/hfcs/*.xlsx
 data/interim/*
 !data/interim/.gitkeep
 
