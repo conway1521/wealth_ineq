@@ -1,10 +1,22 @@
-"""End-to-end pipeline: WID (+ HFCS when available) -> harmonized release frame.
+"""End-to-end pipeline: ingest -> harmonize -> Gini Atlas + Moments Atlas.
 
-The release table is a stacked union of rows from each source. Multiple
-sources may contribute a row for the same (geo_id, year, wealth_concept,
-unit_of_analysis) cell -- they are distinguished by ``source_dataset``,
-and downstream users filter by ``comparability_tier`` or
-``source_priority`` to choose which series to lean on.
+The pipeline produces TWO sibling release tables on every build:
+
+* The headline **Wealth Gini Atlas** -- one row per
+  (geo_id, year, wealth_concept, unit_of_analysis, source_dataset)
+  with a non-null ``wealth_gini``.
+* The companion **Wealth Moments Atlas** -- same schema with a
+  nullable Gini, covering rows where the source publishes
+  distributional moments (mean, median, top shares, negative
+  share) but no headline Gini.
+
+Sources contributing to each table
+
+  WID  -> Gini Atlas (country-years with ``ghwealj/f/i992``)
+        plus Moments Atlas (country-years with only shares / mean)
+  HFCS -> Gini Atlas only (HFCS J4 publishes Gini for every wave)
+  SCF  -> Moments Atlas only (no published Gini in chartbook)
+  DFA  -> Moments Atlas only (4-bucket percentile shares)
 """
 
 from __future__ import annotations
@@ -22,7 +34,8 @@ from ..schema import empty_frame, validate
 log = logging.getLogger(__name__)
 
 
-def _build_wid(raw_dir: Path | None) -> pd.DataFrame:
+def _build_wid_all(raw_dir: Path | None) -> pd.DataFrame:
+    """Return the full harmonized WID frame (both Gini and moments rows)."""
     log.info("Parsing WID files")
     try:
         wid_wide = wid_ingest.parse(raw_dir=raw_dir)
@@ -30,9 +43,63 @@ def _build_wid(raw_dir: Path | None) -> pd.DataFrame:
         log.warning("WID source not available, skipping: %s", exc)
         return empty_frame()
     log.info("Read %d WID country-year observations", len(wid_wide))
-    df = harm.from_wid(wid_wide)
-    log.info("WID release rows: %d", len(df))
-    return df
+
+    # harm.from_wid currently drops null-Gini rows. Re-implement here at
+    # pipeline level by calling the same harmonizer logic but keeping
+    # all rows (Gini-or-moment). The cleanest way: temporarily strip
+    # the null-Gini dropper inside a helper.
+    from ..harmonize.national import _coerce, _headline_gini, _notes, _unit_of_analysis
+    from ..schema import conform, empty_frame as _ef
+    from .. import METHOD_VERSION
+    from ..harmonize.iso import to_iso3
+
+    if wid_wide.empty:
+        return _ef()
+
+    rows = []
+    for _, r in wid_wide.iterrows():
+        iso = to_iso3(r["country"])
+        if iso is None:
+            continue
+        iso3, name = iso
+
+        gini_raw = _coerce(r.get("wealth_gini_raw_source"))
+        gini_headline, clipped_from = _headline_gini(gini_raw)
+        notes = _notes(r)
+        if clipped_from is not None:
+            notes = f"{notes}; headline clipped from {clipped_from:.4f} to [0,1]"
+
+        rows.append({
+            "geo_id": iso3,
+            "geo_name": name,
+            "geo_level": "country",
+            "year": int(r["year"]) if pd.notna(r["year"]) else pd.NA,
+            "wealth_concept": "net_wealth",
+            "wealth_gini": gini_headline,
+            "wealth_gini_raw": gini_raw,
+            "negative_wealth_share": pd.NA,
+            "mean_net_wealth": _coerce(r.get("mean_net_wealth")),
+            "median_net_wealth": _coerce(r.get("median_net_wealth")),
+            "top10_wealth_share": _coerce(r.get("top10_wealth_share")),
+            "top1_wealth_share": _coerce(r.get("top1_wealth_share")),
+            "bottom50_wealth_share": _coerce(r.get("bottom50_wealth_share")),
+            "unit_of_analysis": _unit_of_analysis(r.get("gini_var")),
+            "equivalence_scale": "none",
+            "currency": "EUR_PPP",
+            "source_dataset": "WID",
+            "source_priority": "tier1",
+            "comparability_tier": "B",
+            "observed_vs_modeled": "imported",
+            "top_tail_flag": "mixed",
+            "method_version": METHOD_VERSION,
+            "notes": notes,
+        })
+
+    df = pd.DataFrame(rows)
+    df = df.dropna(subset=["year"])
+    df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
+                                    "unit_of_analysis", "source_dataset"])
+    return conform(df)
 
 
 def _build_hfcs() -> pd.DataFrame:
@@ -47,29 +114,82 @@ def _build_hfcs() -> pd.DataFrame:
     return df
 
 
-def build_release(raw_dir: Path | None = None) -> pd.DataFrame:
-    """Run the v0.1+ pipeline and return a validated release DataFrame."""
-    parts = [_build_wid(raw_dir), _build_hfcs()]
-    parts = [p for p in parts if not p.empty]
+def _build_scf_dfa() -> pd.DataFrame:
+    """SCF + DFA contribute to the Moments Atlas only.
+
+    Stubs return empty frames; they will be replaced by real ingests
+    once the raw source files land in data/raw/scf/ and data/raw/dfa/.
+    """
+    try:
+        from ..ingest import scf as scf_ingest
+        scf_df = scf_ingest.harmonize_frame()
+        log.info("SCF moments rows: %d", len(scf_df))
+    except (FileNotFoundError, NotImplementedError) as exc:
+        log.info("SCF source not available, skipping: %s", exc)
+        scf_df = empty_frame()
+
+    try:
+        from ..ingest import dfa as dfa_ingest
+        dfa_df = dfa_ingest.harmonize_frame()
+        log.info("DFA moments rows: %d", len(dfa_df))
+    except (FileNotFoundError, NotImplementedError) as exc:
+        log.info("DFA source not available, skipping: %s", exc)
+        dfa_df = empty_frame()
+
+    parts = [d for d in (scf_df, dfa_df) if not d.empty]
     if not parts:
-        log.warning("No source produced any rows; release frame is empty")
         return empty_frame()
+    return pd.concat(parts, ignore_index=True)
 
-    df = pd.concat(parts, ignore_index=True)
-    df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
-                                    "unit_of_analysis", "source_dataset"])
-    log.info(
-        "Combined release: %d rows, %d countries, %d sources, years %s..%s",
-        len(df),
-        df["geo_id"].nunique(),
-        df["source_dataset"].nunique(),
-        int(df["year"].min()),
-        int(df["year"].max()),
-    )
 
-    issues = validate(df, strict=False)
-    if issues:
-        log.warning("Schema validation surfaced %d issues:", len(issues))
+def build_release(raw_dir: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build both the Gini Atlas and the Moments Atlas in one pass.
+
+    Returns (gini_atlas_df, moments_atlas_df).
+    """
+    # --- Gather all WID rows (both Gini-bearing and moments-only) ---
+    wid_all = _build_wid_all(raw_dir)
+    wid_gini, wid_moments = harm.split_gini_and_moments(wid_all)
+    log.info("WID rows: %d with Gini, %d moments-only", len(wid_gini), len(wid_moments))
+
+    # HFCS always carries a Gini -> Gini Atlas only.
+    hfcs_df = _build_hfcs()
+
+    # SCF + DFA -> Moments Atlas only (when implemented).
+    sd_df = _build_scf_dfa()
+
+    gini_parts = [p for p in (wid_gini, hfcs_df) if not p.empty]
+    moments_parts = [p for p in (wid_moments, sd_df) if not p.empty]
+
+    gini_atlas = (pd.concat(gini_parts, ignore_index=True).drop_duplicates(
+        subset=["geo_id", "year", "wealth_concept", "unit_of_analysis",
+                "source_dataset"]) if gini_parts else empty_frame())
+    moments_atlas = (pd.concat(moments_parts, ignore_index=True).drop_duplicates(
+        subset=["geo_id", "year", "wealth_concept", "unit_of_analysis",
+                "source_dataset"]) if moments_parts else empty_frame())
+
+    if not gini_atlas.empty:
+        log.info(
+            "Gini Atlas: %d rows, %d countries, %d sources, years %s..%s",
+            len(gini_atlas), gini_atlas["geo_id"].nunique(),
+            gini_atlas["source_dataset"].nunique(),
+            int(gini_atlas["year"].min()), int(gini_atlas["year"].max()),
+        )
+    if not moments_atlas.empty:
+        log.info(
+            "Moments Atlas: %d rows, %d countries, %d sources, years %s..%s",
+            len(moments_atlas), moments_atlas["geo_id"].nunique(),
+            moments_atlas["source_dataset"].nunique(),
+            int(moments_atlas["year"].min()), int(moments_atlas["year"].max()),
+        )
+
+    if not gini_atlas.empty:
+        issues = validate(gini_atlas, strict=False, mode="gini_atlas")
         for i in issues:
-            log.warning("  - %s", i)
-    return df
+            log.warning("Gini Atlas validation: %s", i)
+    if not moments_atlas.empty:
+        issues = validate(moments_atlas, strict=False, mode="moments_atlas")
+        for i in issues:
+            log.warning("Moments Atlas validation: %s", i)
+
+    return gini_atlas, moments_atlas

@@ -92,15 +92,31 @@ def from_wid(wid_wide: pd.DataFrame) -> pd.DataFrame:
         })
 
     df = pd.DataFrame(rows)
-    # This is a Wealth *Gini* Atlas: rows without a Gini are orphans.
-    # WID country-years that publish only a mean or only a top share but
-    # no Gini are dropped here; they can be reintroduced in v0.2+ as a
-    # separate "moments-only" companion table.
-    df = df.dropna(subset=["wealth_gini"])
     df = df.dropna(subset=["year"])
     df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
                                     "unit_of_analysis", "source_dataset"])
     return conform(df)
+
+
+def split_gini_and_moments(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a harmonized frame into (gini_atlas, moments_atlas).
+
+    Rows with a non-null ``wealth_gini`` become the Gini Atlas; rows
+    with null Gini but at least one other distributional moment
+    become the Moments Atlas. Rows with neither are dropped.
+    """
+    if df.empty:
+        return df, df.iloc[0:0].copy()
+
+    has_gini = df["wealth_gini"].notna()
+    moment_cols = ["mean_net_wealth", "median_net_wealth",
+                   "top10_wealth_share", "top1_wealth_share",
+                   "bottom50_wealth_share", "negative_wealth_share"]
+    has_moment = df[moment_cols].notna().any(axis=1)
+
+    gini_atlas = df[has_gini].reset_index(drop=True)
+    moments_atlas = df[~has_gini & has_moment].reset_index(drop=True)
+    return gini_atlas, moments_atlas
 
 
 def _coerce(v):
@@ -174,8 +190,12 @@ def from_hfcs(hfcs_long: pd.DataFrame) -> pd.DataFrame:
         })
 
     df = pd.DataFrame(rows)
-    df = df.dropna(subset=["wealth_gini"])
     df = df.dropna(subset=["year"])
+    # HFCS: keep the Gini-required filter at this stage; the moments
+    # path is only relevant for sources where Gini is structurally
+    # absent (SCF, DFA), which the pipeline handles via
+    # split_gini_and_moments downstream.
+    df = df.dropna(subset=["wealth_gini"])
     df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
                                     "unit_of_analysis", "source_dataset"])
     return conform(df)

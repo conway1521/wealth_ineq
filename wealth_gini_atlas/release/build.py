@@ -1,4 +1,14 @@
-"""Write release artifacts: CSV, Parquet, manifest JSON."""
+"""Write release artifacts: CSV, Parquet, manifest JSON.
+
+Two product families share this code:
+
+* The headline Wealth Gini Atlas (basename ``wealth_gini_atlas_v<v>``).
+* The companion Wealth Moments Atlas (basename
+  ``wealth_moments_atlas_v<v>``) -- same schema with nullable
+  ``wealth_gini``, intended for rows where a Gini is structurally
+  unavailable (SCF chartbook, DFA Lorenz inputs, WID country-years
+  without a published Gini).
+"""
 
 from __future__ import annotations
 
@@ -18,19 +28,17 @@ def _sha256(p: Path) -> str:
     return h.hexdigest()
 
 
-def write(df: pd.DataFrame, out_dir: Path, version: str | None = None) -> dict:
-    """Write CSV + Parquet + manifest. Returns the manifest dict."""
+def _write_pair(df: pd.DataFrame, out_dir: Path, basename: str,
+                product_name: str, version: str) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
-    version = version or __version__
-
-    csv_path = out_dir / f"wealth_gini_atlas_v{version}.csv"
-    pq_path = out_dir / f"wealth_gini_atlas_v{version}.parquet"
+    csv_path = out_dir / f"{basename}_v{version}.csv"
+    pq_path = out_dir / f"{basename}_v{version}.parquet"
 
     df.to_csv(csv_path, index=False)
     df.to_parquet(pq_path, index=False)
 
     manifest = {
-        "name": "Wealth Gini Atlas",
+        "name": product_name,
         "version": version,
         "method_version": METHOD_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -50,6 +58,23 @@ def write(df: pd.DataFrame, out_dir: Path, version: str | None = None) -> dict:
         "license_code": "MIT",
         "headline_negative_wealth_rule": "zero-out (see docs/methods.md)",
     }
-    manifest_path = out_dir / f"wealth_gini_atlas_v{version}.manifest.json"
+    manifest_path = out_dir / f"{basename}_v{version}.manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
     return manifest
+
+
+def write(df: pd.DataFrame, out_dir: Path, version: str | None = None) -> dict:
+    """Write the Gini Atlas (CSV + Parquet + manifest). Returns the manifest."""
+    return _write_pair(df, Path(out_dir),
+                       basename="wealth_gini_atlas",
+                       product_name="Wealth Gini Atlas",
+                       version=version or __version__)
+
+
+def write_moments(df: pd.DataFrame, out_dir: Path,
+                  version: str | None = None) -> dict:
+    """Write the Moments Atlas companion (CSV + Parquet + manifest)."""
+    return _write_pair(df, Path(out_dir),
+                       basename="wealth_moments_atlas",
+                       product_name="Wealth Moments Atlas (companion to the Wealth Gini Atlas)",
+                       version=version or __version__)

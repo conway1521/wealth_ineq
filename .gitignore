@@ -21,6 +21,16 @@ data/raw/*
 # without each contributor re-downloading from the ECB.
 !data/raw/hfcs/
 !data/raw/hfcs/*.xlsx
+# SCF chartbook tables (Federal Reserve, US public domain).
+!data/raw/scf/
+!data/raw/scf/*.xlsx
+!data/raw/scf/*.csv
+!data/raw/scf/.gitkeep
+# DFA quarterly dataset (Federal Reserve, US public domain).
+!data/raw/dfa/
+!data/raw/dfa/*.zip
+!data/raw/dfa/*.csv
+!data/raw/dfa/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
 

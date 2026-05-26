@@ -26,7 +26,11 @@ def test_end_to_end_with_fixtures(tmp_path, monkeypatch):
     # under data/raw/hfcs/.
     monkeypatch.setenv("WGA_HFCS_LOCAL", str(tmp_path / "no-hfcs.csv"))
 
-    df = build_release()
+    df, moments = build_release()
+    # Synthetic WID fixtures have a Gini for every row so the moments
+    # atlas is empty; the v0.3+ pipeline still returns it as the second
+    # element of the tuple.
+    assert moments.empty
     assert not df.empty
 
     # Five countries (FRA, DEU, USA, ESP, ITA), three observations each.

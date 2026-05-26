@@ -1,8 +1,30 @@
-# Methods note -- Wealth Gini Atlas v0.1
+# Methods note -- Wealth Gini Atlas
 
-This memo summarizes the methodological choices baked into the v0.1
-release. It is the public-facing operationalization of the project
-brief in the repository root.
+This memo summarizes the methodological choices baked into the
+current release. It is the public-facing operationalization of the
+project brief in the repository root.
+
+## 0. Two sibling products
+
+From v0.3 onward, every `wga build` produces two sibling release
+tables under `data/release/`:
+
+* **Wealth Gini Atlas** (`wealth_gini_atlas_v<v>.*`): one row per
+  (geo_id, year, wealth_concept, unit_of_analysis, source_dataset)
+  with a non-null `wealth_gini`. This is the headline product.
+* **Wealth Moments Atlas** (`wealth_moments_atlas_v<v>.*`): same
+  schema, nullable `wealth_gini`, for rows where the source
+  publishes distributional moments (mean, median, top shares,
+  negative-wealth share) but no Gini. Sources contributing only
+  here include SCF (chartbook publishes moments only), DFA (4-bucket
+  percentile shares quarterly), and WID country-years that publish
+  only top shares.
+
+The two products are versioned and released together. Users who
+want the strict "Atlas" should query the Gini Atlas; users
+calibrating macro / heterogeneous-agent models against
+distributional moments should query the Moments Atlas (and
+optionally union both).
 
 ## 1. Wealth concept
 

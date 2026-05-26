@@ -12,6 +12,7 @@ from .compute.pipeline import build_release
 from .ingest import hfcs as hfcs_ingest
 from .ingest import wid as wid_ingest
 from .release.build import write as write_release
+from .release.build import write_moments as write_moments_release
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-7s  %(name)s  %(message)s",
@@ -39,11 +40,25 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
-    df = build_release(raw_dir=Path(args.raw_dir) if args.raw_dir else None)
+    gini_df, moments_df = build_release(
+        raw_dir=Path(args.raw_dir) if args.raw_dir else None
+    )
     out_dir = Path(args.out_dir)
-    manifest = write_release(df, out_dir, version=args.version)
-    log.info("Wrote release v%s: %d rows, %d countries -> %s",
-             manifest["version"], manifest["n_rows"], manifest["n_countries"], out_dir)
+
+    gini_manifest = write_release(gini_df, out_dir, version=args.version)
+    log.info("Wrote Gini Atlas v%s: %d rows, %d countries -> %s",
+             gini_manifest["version"], gini_manifest["n_rows"],
+             gini_manifest["n_countries"], out_dir)
+
+    if not moments_df.empty:
+        moments_manifest = write_moments_release(
+            moments_df, out_dir, version=args.version
+        )
+        log.info("Wrote Moments Atlas v%s: %d rows, %d countries -> %s",
+                 moments_manifest["version"], moments_manifest["n_rows"],
+                 moments_manifest["n_countries"], out_dir)
+    else:
+        log.info("Moments Atlas is empty; no companion artifact written")
     return 0
 
 

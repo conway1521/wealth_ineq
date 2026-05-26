@@ -26,7 +26,10 @@ def test_combined_wid_plus_hfcs(tmp_path, monkeypatch):
     monkeypatch.setenv("WGA_WID_LOCAL", str(FIXTURE_DIR))
     monkeypatch.setenv("WGA_HFCS_LOCAL", str(FIXTURE_DIR / "hfcs_indicators.csv"))
 
-    df = build_release()
+    df, moments = build_release()
+    # Synthetic fixtures have a Gini for every row, so the moments
+    # atlas is empty here.
+    assert moments.empty
     assert not df.empty
 
     # Both sources represented

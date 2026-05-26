@@ -104,11 +104,20 @@ def conform(df: pd.DataFrame) -> pd.DataFrame:
     return out[COLUMN_ORDER]
 
 
-def validate(df: pd.DataFrame, *, strict: bool = True) -> list[str]:
+def validate(df: pd.DataFrame, *, strict: bool = True,
+             mode: str = "gini_atlas") -> list[str]:
     """Check the release frame; return a list of human-readable issues.
 
-    With strict=True, raises SchemaError if any issue is found.
+    Parameters
+    ----------
+    strict   raise SchemaError when issues are found
+    mode     "gini_atlas" (default) requires wealth_gini per row;
+             "moments_atlas" allows null wealth_gini but requires at
+             least one other distributional moment per row.
     """
+    if mode not in {"gini_atlas", "moments_atlas"}:
+        raise ValueError(f"unknown validation mode: {mode!r}")
+
     issues: list[str] = []
 
     missing_required = [c for c in REQUIRED if c not in df.columns]
@@ -118,11 +127,26 @@ def validate(df: pd.DataFrame, *, strict: bool = True) -> list[str]:
             raise SchemaError("; ".join(issues))
         return issues
 
-    # Required-column null checks
+    # Required-column null checks (wealth_gini exempt in moments mode)
     for c in REQUIRED:
+        if c == "wealth_gini" and mode == "moments_atlas":
+            continue
         n_null = df[c].isna().sum()
         if n_null:
             issues.append(f"required column {c!r} has {n_null} nulls")
+
+    if mode == "moments_atlas":
+        # In moments mode, every row must carry at least one non-Gini moment.
+        moment_cols = [c for c in (
+            "mean_net_wealth", "median_net_wealth", "top10_wealth_share",
+            "top1_wealth_share", "bottom50_wealth_share",
+            "negative_wealth_share"
+        ) if c in df.columns]
+        if moment_cols:
+            no_moment = df[moment_cols].isna().all(axis=1).sum()
+            if no_moment:
+                issues.append(
+                    f"{no_moment} moments-atlas rows have no non-Gini moments")
 
     # Vocabulary checks
     def _check_vocab(col: str, vocab: Iterable[str]) -> None:

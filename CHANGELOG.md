@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.3.0 -- unreleased
+
+* New sibling product: **Wealth Moments Atlas** (`wealth_moments_atlas_v<v>.csv` /
+  `.parquet` / `.manifest.json`) for rows that carry distributional
+  moments (mean, median, top shares, negative-wealth share) but no
+  headline Gini. Resolves `research_directions.md` item #3
+  (previously dropped ~8000 WID country-years).
+* Pipeline now emits BOTH atlases on every `wga build`:
+  the Gini Atlas (Gini required per row) and the Moments Atlas
+  (Gini optional, but at least one other moment required per row).
+* `harmonize/national.py::split_gini_and_moments` partitions the
+  full harmonized frame into the two products.
+* `schema.validate(mode=...)` supports `"gini_atlas"` (default,
+  current behavior) and `"moments_atlas"` (Gini may be null;
+  flags rows with no moments at all).
+* SCF and DFA ingest scaffolds added (`wealth_gini_atlas/ingest/{scf,dfa}.py`):
+  documented expected file paths, harmonizer contracts, and stub
+  `parse()` that raises `NotImplementedError` until raw files land
+  in `data/raw/{scf,dfa}/`. Both sources contribute to the Moments
+  Atlas only.
+* `.gitignore` updated to allow `data/raw/scf/*.xlsx|csv` and
+  `data/raw/dfa/*.zip|csv` through (US Federal Reserve material,
+  US public domain).
+
 ## v0.2.0 -- unreleased
 
 * HFCS ingest module reads the ECB Statistical Tables XLSX
