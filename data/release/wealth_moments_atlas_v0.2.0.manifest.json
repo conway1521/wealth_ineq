@@ -1,0 +1,30 @@
+{
+  "name": "Wealth Moments Atlas (companion to the Wealth Gini Atlas)",
+  "version": "0.2.0",
+  "method_version": "wga-0.2",
+  "generated_at": "2026-05-26T19:57:54.015789+00:00",
+  "n_rows": 7874,
+  "n_countries": 53,
+  "year_min": 1800,
+  "year_max": 2024,
+  "sources": [
+    "WID"
+  ],
+  "files": [
+    {
+      "path": "wealth_moments_atlas_v0.2.0.csv",
+      "sha256": "0ba5e0346e97d75e1ce2986b1ce8bd1a8bbf218ce905f9535ef36ce55b5054aa",
+      "bytes": 1181357,
+      "format": "csv"
+    },
+    {
+      "path": "wealth_moments_atlas_v0.2.0.parquet",
+      "sha256": "e6f810343493760d6d73ae4df14a7a665d1714aaae416b3d7c82ed3f606eb9bb",
+      "bytes": 73964,
+      "format": "parquet"
+    }
+  ],
+  "license_data": "CC-BY-4.0",
+  "license_code": "MIT",
+  "headline_negative_wealth_rule": "zero-out (see docs/methods.md)"
+}
