@@ -1,0 +1,31 @@
+{
+  "name": "Wealth Gini Atlas",
+  "version": "0.2.0",
+  "method_version": "wga-0.2",
+  "generated_at": "2026-05-26T18:46:42.744753+00:00",
+  "n_rows": 10540,
+  "n_countries": 213,
+  "year_min": 1800,
+  "year_max": 2024,
+  "sources": [
+    "HFCS",
+    "WID"
+  ],
+  "files": [
+    {
+      "path": "wealth_gini_atlas_v0.2.0.csv",
+      "sha256": "582d059166f57ff3ffd0e605be3dfac0c1c876f1ef80ffaedbc12a553728b429",
+      "bytes": 2718522,
+      "format": "csv"
+    },
+    {
+      "path": "wealth_gini_atlas_v0.2.0.parquet",
+      "sha256": "ff2e0150b5435ee37a5b0925fec1f493eb6ac95da448df6e77b99547898a0c88",
+      "bytes": 236696,
+      "format": "parquet"
+    }
+  ],
+  "license_data": "CC-BY-4.0",
+  "license_code": "MIT",
+  "headline_negative_wealth_rule": "zero-out (see docs/methods.md)"
+}
