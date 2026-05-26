@@ -20,11 +20,17 @@ will introduce the supplementary variants alongside the headline.
 
 WID publishes its wealth series on a **per-adult equal-split** basis:
 each adult is attributed an equal share of their household's wealth.
-We carry this convention through v0.1 by setting
-`unit_of_analysis = per_adult_equal_split`. HFCS and SCF native units
-are the **household**; both will appear in v0.2 / v0.3 alongside the
-per-adult WID rows. The release is therefore long-format with multiple
-unit bases per (geo_id, year), distinguished by `unit_of_analysis`.
+v0.1 WID rows carry `unit_of_analysis = per_adult_equal_split` (or
+`per_adult` / `individual` for the small number of country-years where
+WID's bottom-pop fallback is used; see `notes`).
+
+v0.2 introduces **household-basis** rows from HFCS for euro-area
+countries. These coexist with the WID per-adult rows for the same
+country-year, distinguished by `unit_of_analysis` and `source_dataset`.
+A household-basis Gini for the same country-year is typically a few
+points lower than the WID per-adult-equal-split Gini, because
+equivalization sharpens dispersion. SCF (v0.3) will add a third
+household-basis stream for the US.
 
 ## 3. Gini computation and negative wealth
 

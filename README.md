@@ -61,6 +61,24 @@ export WGA_WID_LOCAL=/path/to/unzipped/wid
 wga build --out-dir data/release
 ```
 
+## Add HFCS (v0.2)
+
+Download HFCS distributional indicators from
+[data.ecb.europa.eu](https://data.ecb.europa.eu/data/data-categories/household-finance-and-consumption-survey)
+and convert them to a CSV with the schema documented in
+`wealth_gini_atlas/ingest/hfcs.py` (one row per `(country, wave)`).
+
+Place the file at `data/raw/hfcs/hfcs_indicators.csv` (or point
+`WGA_HFCS_LOCAL` at it) and re-run `wga build`. The release file will
+then contain Tier A household-basis rows from HFCS alongside the
+Tier B per-adult rows from WID; downstream users filter by
+`source_dataset` or `comparability_tier`.
+
+```bash
+wga fetch hfcs                   # prints the schema and exits if missing
+wga build --out-dir data/release # produces the combined release
+```
+
 ## Run the tests
 
 ```bash

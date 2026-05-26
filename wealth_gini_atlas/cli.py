@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .compute.pipeline import build_release
+from .ingest import hfcs as hfcs_ingest
 from .ingest import wid as wid_ingest
 from .release.build import write as write_release
 
@@ -24,7 +25,16 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         path = wid_ingest.fetch(countries=countries)
         log.info("WID raw data ready at %s", path)
         return 0
-    log.error("Unknown source: %s (currently only `wid` is implemented)", args.source)
+    if args.source == "hfcs":
+        try:
+            path = hfcs_ingest.fetch()
+        except FileNotFoundError as exc:
+            # The exception's message is the user-facing instruction.
+            print(str(exc))
+            return 1
+        log.info("HFCS source ready at %s", path)
+        return 0
+    log.error("Unknown source: %s", args.source)
     return 2
 
 
@@ -85,8 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pf = sub.add_parser("fetch", help="Download raw upstream data")
-    pf.add_argument("source", choices=["wid"], help="Source to fetch")
-    pf.add_argument("--countries", help="Comma-separated ISO-2 codes (default: all)")
+    pf.add_argument("source", choices=["wid", "hfcs"], help="Source to fetch")
+    pf.add_argument("--countries", help="Comma-separated ISO-2 codes (default: all, WID only)")
     pf.set_defaults(func=cmd_fetch)
 
     pb = sub.add_parser("build", help="Build the release tables")

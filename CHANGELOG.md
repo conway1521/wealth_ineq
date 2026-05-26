@@ -1,6 +1,23 @@
 # Changelog
 
-## v0.1.0 -- unreleased
+## v0.2.0 -- unreleased
+
+* HFCS ingest module (`wga fetch hfcs`) reading a tidy CSV from
+  `data/raw/hfcs/hfcs_indicators.csv` (or `WGA_HFCS_LOCAL`). The
+  expected schema is documented in `wealth_gini_atlas/ingest/hfcs.py`
+  and a synthetic fixture for DE/FR/IT/ES across waves 1-4 ships under
+  `data/fixtures/hfcs_indicators.csv`.
+* `harmonize/national.py::from_hfcs` produces household-basis Tier A
+  rows with `unit_of_analysis=household`, `comparability_tier=A`,
+  `top_tail_flag=survey_only`, and `currency=EUR`.
+* Pipeline now stacks WID + HFCS into a single release; same
+  country-year may appear under both sources with distinct
+  `unit_of_analysis` and `source_dataset` values, preserving the
+  natural-key uniqueness invariant.
+* End-to-end test `test_combined_wid_plus_hfcs` covers the two-source
+  merge, schema validation, and the per-source metadata invariants.
+
+## v0.1.0
 
 Initial scaffold.
 

@@ -114,6 +114,73 @@ def _coerce(v):
     return float(v)
 
 
+def from_hfcs(hfcs_long: pd.DataFrame) -> pd.DataFrame:
+    """Map the HFCS parse() output to the release schema.
+
+    HFCS is the strongest harmonized European household-basis source,
+    so rows are tagged ``unit_of_analysis = "household"``,
+    ``source_dataset = "HFCS"``, ``source_priority = "tier1"``,
+    ``comparability_tier = "A"`` (the HFCS instrument is explicitly
+    harmonized across euro-area NCBs), and ``top_tail_flag =
+    "survey_only"`` because HFCS does not use administrative tax
+    microdata to reweight the upper tail.
+
+    HFCS publishes Ginis in [0, 1] by design, so the clipping logic
+    used for WID is not exercised here -- but we route through the
+    same helper to preserve the audit trail (out-of-range values still
+    populate ``wealth_gini_raw`` and are logged in ``notes``).
+    """
+    if hfcs_long.empty:
+        return empty_frame()
+
+    rows = []
+    for _, r in hfcs_long.iterrows():
+        iso = to_iso3(r["country"])
+        if iso is None:
+            continue
+        iso3, name = iso
+
+        gini_raw = _coerce(r.get("gini"))
+        gini_headline, clipped_from = _headline_gini(gini_raw)
+
+        notes = f"HFCS wave {int(r['wave'])}"
+        if clipped_from is not None:
+            notes = f"{notes}; headline clipped from {clipped_from:.4f} to [0,1]"
+
+        rows.append({
+            "geo_id": iso3,
+            "geo_name": name,
+            "geo_level": "country",
+            "year": int(r["year"]) if pd.notna(r["year"]) else pd.NA,
+            "wealth_concept": "net_wealth",
+            "wealth_gini": gini_headline,
+            "wealth_gini_raw": gini_raw,
+            "negative_wealth_share": _coerce(r.get("neg_wealth_share")),
+            "mean_net_wealth": _coerce(r.get("mean_net_wealth")),
+            "median_net_wealth": _coerce(r.get("median_net_wealth")),
+            "top10_wealth_share": _coerce(r.get("top10_share")),
+            "top1_wealth_share": _coerce(r.get("top1_share")),
+            "bottom50_wealth_share": pd.NA,   # HFCS does not publish this directly
+            "unit_of_analysis": "household",
+            "equivalence_scale": "none",
+            "currency": "EUR",
+            "source_dataset": "HFCS",
+            "source_priority": "tier1",
+            "comparability_tier": "A",
+            "observed_vs_modeled": "imported",
+            "top_tail_flag": "survey_only",
+            "method_version": METHOD_VERSION,
+            "notes": notes,
+        })
+
+    df = pd.DataFrame(rows)
+    df = df.dropna(subset=["wealth_gini"])
+    df = df.dropna(subset=["year"])
+    df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
+                                    "unit_of_analysis", "source_dataset"])
+    return conform(df)
+
+
 def _headline_gini(gini_raw):
     """Return (headline_gini, clipped_from_value_or_None).
 
