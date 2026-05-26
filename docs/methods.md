@@ -40,12 +40,23 @@ with negative net wealth is stored separately as
 zero-out) as `wealth_gini_raw` for users who want to work with the
 unmodified statistic.
 
-For WID-imported rows the published Gini is already a Lorenz-curve
-statistic that respects [0, 1] by construction (WID handles negatives
-at the micro level before computing the Gini). We therefore report
-the WID Gini both in `wealth_gini` and `wealth_gini_raw`; the
-zero-out rule only binds for rows we compute ourselves from
-microdata (v0.3+).
+For WID-imported rows the published Gini is *intended* to respect
+[0, 1] by construction (WID handles negatives at the micro level
+before computing the Gini). In practice a small number of highly
+unequal country-years have published WID Ginis slightly above 1.0 --
+South Africa over 1910-2012 is the prominent case in the v0.1
+backbone -- because residual negative wealth in the bottom tail
+survives WID's own treatment.
+
+**Clipping rule for source-imported Ginis.** We clip the headline
+`wealth_gini` to [0, 1] so downstream users keep the familiar
+invariant. The unclipped source value is preserved in
+`wealth_gini_raw`, and the clip is logged in `notes`
+(`"headline clipped from <value> to [0,1]"`). Values that fall more
+than 0.10 outside the unit interval are treated as anomalies and
+dropped from the headline column (the raw value is still recorded);
+this defends against future WID format changes or sentinel values
+that would otherwise corrupt the public series.
 
 ## 4. Source hierarchy
 

@@ -58,14 +58,21 @@ def from_wid(wid_wide: pd.DataFrame) -> pd.DataFrame:
             continue  # skip aggregates / unmapped codes
         iso3, name = iso
 
+        gini_raw = _coerce(r.get("wealth_gini_raw_source"))
+        gini_headline, clipped_from = _headline_gini(gini_raw)
+
+        notes = _notes(r)
+        if clipped_from is not None:
+            notes = f"{notes}; headline clipped from {clipped_from:.4f} to [0,1]"
+
         rows.append({
             "geo_id": iso3,
             "geo_name": name,
             "geo_level": "country",
             "year": int(r["year"]) if pd.notna(r["year"]) else pd.NA,
             "wealth_concept": "net_wealth",
-            "wealth_gini": _coerce(r.get("wealth_gini_raw_source")),
-            "wealth_gini_raw": _coerce(r.get("wealth_gini_raw_source")),
+            "wealth_gini": gini_headline,
+            "wealth_gini_raw": gini_raw,
             "negative_wealth_share": pd.NA,  # not published in WID series
             "mean_net_wealth": _coerce(r.get("mean_net_wealth")),
             "median_net_wealth": _coerce(r.get("median_net_wealth")),
@@ -81,7 +88,7 @@ def from_wid(wid_wide: pd.DataFrame) -> pd.DataFrame:
             "observed_vs_modeled": "imported",
             "top_tail_flag": "mixed",  # WID blends survey + admin per country
             "method_version": METHOD_VERSION,
-            "notes": _notes(r),
+            "notes": notes,
         })
 
     df = pd.DataFrame(rows)
@@ -105,3 +112,32 @@ def _coerce(v):
     except (TypeError, ValueError):
         return pd.NA
     return float(v)
+
+
+def _headline_gini(gini_raw):
+    """Return (headline_gini, clipped_from_value_or_None).
+
+    Source-published Ginis are occasionally just outside [0, 1] -- WID's
+    own micro-data treatment can leave residual negative-wealth pressure
+    in highly unequal economies, producing Ginis slightly above 1.0
+    (e.g. South Africa pre-2014). For the headline we clip to [0, 1] so
+    downstream users get the familiar invariant; the unclipped source
+    value lives in ``wealth_gini_raw`` and the clip is logged in
+    ``notes``.
+
+    Values that fall too far outside the unit interval (more than 0.10
+    away) are treated as anomalies and dropped (returned as NA).
+    """
+    if gini_raw is pd.NA:
+        return pd.NA, None
+    try:
+        v = float(gini_raw)
+    except (TypeError, ValueError):
+        return pd.NA, None
+    if v < -0.10 or v > 1.10:
+        return pd.NA, v  # treat as anomalous; raw column still records it
+    if v < 0.0:
+        return 0.0, v
+    if v > 1.0:
+        return 1.0, v
+    return v, None

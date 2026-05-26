@@ -117,3 +117,33 @@ def test_validate_accepts_partial_shares():
                                     top1_wealth_share=0.3)]))
     issues = validate(df, strict=False)
     assert not any("top10 + bottom50" in i for i in issues)
+
+
+# --- Source-Gini clipping rule (see harmonize/national.py) ------------------
+
+def test_headline_gini_clipping_rule():
+    from wealth_gini_atlas.harmonize.national import _headline_gini
+
+    # Normal values pass through.
+    assert _headline_gini(0.5) == (0.5, None)
+    assert _headline_gini(0.0) == (0.0, None)
+    assert _headline_gini(1.0) == (1.0, None)
+
+    # WID-style mild overshoot (e.g. South Africa, 1.0618) gets clipped
+    # to 1.0 with the original recorded for the notes column.
+    headline, clipped_from = _headline_gini(1.0618)
+    assert headline == 1.0 and clipped_from == 1.0618
+
+    # Tiny negative undershoot gets clipped to 0.
+    headline, clipped_from = _headline_gini(-0.02)
+    assert headline == 0.0 and clipped_from == -0.02
+
+    # Anomalies (more than 0.10 outside [0,1]) are dropped from the
+    # headline; the raw value is preserved for the notes column.
+    headline, raw = _headline_gini(2.5)
+    assert headline is pd.NA and raw == 2.5
+    headline, raw = _headline_gini(-0.5)
+    assert headline is pd.NA and raw == -0.5
+
+    # NA in -> NA out, no clip flag.
+    assert _headline_gini(pd.NA) == (pd.NA, None)
