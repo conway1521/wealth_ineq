@@ -66,3 +66,54 @@ def test_strict_mode_raises():
     df = conform(pd.DataFrame([_row(wealth_gini=99.0)]))
     with pytest.raises(SchemaError):
         validate(df, strict=True)
+
+
+# --- Internal consistency checks --------------------------------------------
+
+def test_validate_flags_top1_above_top10():
+    df = conform(pd.DataFrame([_row(top1_wealth_share=0.30,
+                                    top10_wealth_share=0.20)]))
+    issues = validate(df, strict=False)
+    assert any("top1_wealth_share > top10_wealth_share" in i for i in issues)
+
+
+def test_validate_flags_top10_below_floor():
+    df = conform(pd.DataFrame([_row(top10_wealth_share=0.05)]))
+    issues = validate(df, strict=False)
+    assert any("top10_wealth_share < 0.10" in i for i in issues)
+
+
+def test_validate_flags_top1_below_floor():
+    df = conform(pd.DataFrame([_row(top1_wealth_share=0.005,
+                                    top10_wealth_share=0.30)]))
+    issues = validate(df, strict=False)
+    assert any("top1_wealth_share < 0.01" in i for i in issues)
+
+
+def test_validate_flags_bottom50_above_half():
+    df = conform(pd.DataFrame([_row(bottom50_wealth_share=0.65)]))
+    issues = validate(df, strict=False)
+    assert any("bottom50_wealth_share > 0.5" in i for i in issues)
+
+
+def test_validate_flags_top_plus_bottom_exceeding_one():
+    df = conform(pd.DataFrame([_row(top10_wealth_share=0.80,
+                                    bottom50_wealth_share=0.40,
+                                    top1_wealth_share=0.40)]))
+    issues = validate(df, strict=False)
+    assert any("middle 40% negative" in i for i in issues)
+
+
+def test_validate_flags_mean_below_median():
+    df = conform(pd.DataFrame([_row(mean_net_wealth=50_000,
+                                    median_net_wealth=80_000)]))
+    issues = validate(df, strict=False)
+    assert any("right-skewed wealth distributions" in i for i in issues)
+
+
+def test_validate_accepts_partial_shares():
+    # bottom50 missing -> the top10+bottom50 check should NOT fire.
+    df = conform(pd.DataFrame([_row(top10_wealth_share=0.7,
+                                    top1_wealth_share=0.3)]))
+    issues = validate(df, strict=False)
+    assert not any("top10 + bottom50" in i for i in issues)

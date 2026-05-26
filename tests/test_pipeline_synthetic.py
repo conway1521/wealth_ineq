@@ -25,10 +25,9 @@ def test_end_to_end_with_fixtures(tmp_path, monkeypatch):
     df = build_release()
     assert not df.empty
 
-    # Three countries, three years each = 9 rows.
-    assert len(df) == 9
-    assert set(df["geo_id"]) == {"FRA", "DEU", "USA"}
-    assert set(df["year"].astype(int)) == {2018, 2019, 2020}
+    # Five countries (FRA, DEU, USA, ESP, ITA), three observations each.
+    assert len(df) == 15
+    assert set(df["geo_id"]) == {"FRA", "DEU", "USA", "ESP", "ITA"}
 
     # Gini stays in [0, 1] for all rows.
     g = df["wealth_gini"].astype(float)
@@ -39,15 +38,21 @@ def test_end_to_end_with_fixtures(tmp_path, monkeypatch):
     assert df["top1_wealth_share"].dropna().between(0, 1).all()
     assert df["bottom50_wealth_share"].dropna().between(0, 1).all()
 
-    # Schema validates cleanly.
+    # Right-skew: mean >= median for every row.
+    assert (df["mean_net_wealth"] >= df["median_net_wealth"]).all()
+
+    # Nested-percentile consistency: top1 <= top10 for every row.
+    assert (df["top1_wealth_share"] <= df["top10_wealth_share"]).all()
+
+    # Schema validates cleanly, including the internal consistency checks.
     assert validate(df, strict=False) == []
 
     # Release artifacts round-trip via CSV and Parquet.
     manifest = write_release(df, tmp_path, version="0.1.0-test")
-    assert manifest["n_rows"] == 9
-    assert manifest["n_countries"] == 3
+    assert manifest["n_rows"] == 15
+    assert manifest["n_countries"] == 5
     assert manifest["sources"] == ["WID"]
 
     csv = pd.read_csv(tmp_path / "wealth_gini_atlas_v0.1.0-test.csv")
     pq = pd.read_parquet(tmp_path / "wealth_gini_atlas_v0.1.0-test.parquet")
-    assert len(csv) == len(pq) == 9
+    assert len(csv) == len(pq) == 15

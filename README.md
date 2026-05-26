@@ -46,6 +46,9 @@ wga build --out-dir data/release
 
 # 3. Sanity-check the artifact against the schema
 wga validate data/release/wealth_gini_atlas_v0.1.0.csv
+
+# 4. Inspect coverage (country x source matrix)
+wga coverage data/release/wealth_gini_atlas_v0.1.0.parquet
 ```
 
 If your environment cannot reach `wid.world` directly (sandboxed

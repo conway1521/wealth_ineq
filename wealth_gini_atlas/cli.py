@@ -51,6 +51,34 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_coverage(args: argparse.Namespace) -> int:
+    """Print a (geo x source) presence matrix for a release file.
+
+    Useful diagnostic once multiple sources are ingested -- shows which
+    country-source cells are filled and where the gaps are.
+    """
+    import pandas as pd
+    df = pd.read_parquet(args.path) if str(args.path).endswith(".parquet") \
+        else pd.read_csv(args.path)
+
+    if df.empty:
+        print("empty release file")
+        return 0
+
+    presence = (
+        df.groupby(["geo_id", "source_dataset"])
+          .size()
+          .unstack(fill_value=0)
+    )
+    print(presence.to_string())
+    print()
+    print(f"countries  : {df['geo_id'].nunique()}")
+    print(f"sources    : {sorted(df['source_dataset'].unique().tolist())}")
+    print(f"year_range : {int(df['year'].min())}..{int(df['year'].max())}")
+    print(f"rows       : {len(df)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="wga", description="Wealth Gini Atlas CLI")
     p.add_argument("--version", action="version", version=__version__)
@@ -72,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     pv = sub.add_parser("validate", help="Schema-validate a release file")
     pv.add_argument("path", help="Path to CSV or Parquet file")
     pv.set_defaults(func=cmd_validate)
+
+    pc = sub.add_parser("coverage",
+                        help="Print a country x source coverage matrix")
+    pc.add_argument("path", help="Path to CSV or Parquet release file")
+    pc.set_defaults(func=cmd_coverage)
 
     args = p.parse_args(argv)
     return args.func(args)

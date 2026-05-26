@@ -160,6 +160,64 @@ def validate(df: pd.DataFrame, *, strict: bool = True) -> list[str]:
         if dups:
             issues.append(f"{dups} duplicate rows on natural key {key}")
 
+    # Internal consistency of distributional shares
+    # ---------------------------------------------
+    # Wealth distributions are right-skewed, so the following bounds must
+    # hold by construction (allowing a small tolerance for rounding in the
+    # upstream publication):
+    #   * top1 <= top10                         (nested percentile groups)
+    #   * 0.10 <= top10 <= 1.0                  (top decile holds >=10%)
+    #   * 0.01 <= top1  <= 1.0                  (top centile holds >=1%)
+    #   * 0    <= bottom50 <= 0.5               (bottom half holds <=50%)
+    #   * top10 + bottom50 <= 1.0               (middle 40% share non-neg)
+    #   * mean_net_wealth >= median_net_wealth  (right-skew of wealth)
+    tol = 1e-6
+
+    def _bad(col: str, mask: "pd.Series") -> int:
+        return int(mask.fillna(False).sum())
+
+    if {"top1_wealth_share", "top10_wealth_share"}.issubset(df.columns):
+        n = _bad("top1>top10",
+                 df["top1_wealth_share"] > df["top10_wealth_share"] + tol)
+        if n:
+            issues.append(f"{n} rows have top1_wealth_share > top10_wealth_share")
+
+    if "top10_wealth_share" in df.columns:
+        s = df["top10_wealth_share"]
+        n = _bad("top10<0.10", (s < 0.10 - tol) & s.notna())
+        if n:
+            issues.append(f"{n} rows have top10_wealth_share < 0.10 (impossible)")
+
+    if "top1_wealth_share" in df.columns:
+        s = df["top1_wealth_share"]
+        n = _bad("top1<0.01", (s < 0.01 - tol) & s.notna())
+        if n:
+            issues.append(f"{n} rows have top1_wealth_share < 0.01 (impossible)")
+
+    if "bottom50_wealth_share" in df.columns:
+        s = df["bottom50_wealth_share"]
+        n = _bad("bottom50>0.5", s > 0.5 + tol)
+        if n:
+            issues.append(f"{n} rows have bottom50_wealth_share > 0.5 (impossible)")
+
+    if {"top10_wealth_share", "bottom50_wealth_share"}.issubset(df.columns):
+        s = df["top10_wealth_share"].fillna(0) + df["bottom50_wealth_share"].fillna(0)
+        # Only flag when both shares are present; otherwise the sum is partial.
+        both = df["top10_wealth_share"].notna() & df["bottom50_wealth_share"].notna()
+        n = _bad("top10+bottom50>1", (s > 1.0 + tol) & both)
+        if n:
+            issues.append(f"{n} rows have top10 + bottom50 > 1 (middle 40% negative)")
+
+    if {"mean_net_wealth", "median_net_wealth"}.issubset(df.columns):
+        both = df["mean_net_wealth"].notna() & df["median_net_wealth"].notna()
+        n = _bad("mean<median",
+                 (df["mean_net_wealth"] < df["median_net_wealth"] - tol) & both)
+        if n:
+            issues.append(
+                f"{n} rows have mean_net_wealth < median_net_wealth "
+                "(unexpected for right-skewed wealth distributions)"
+            )
+
     if strict and issues:
         raise SchemaError("; ".join(issues))
     return issues
