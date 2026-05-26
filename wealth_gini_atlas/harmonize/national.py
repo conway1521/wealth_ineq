@@ -85,11 +85,11 @@ def from_wid(wid_wide: pd.DataFrame) -> pd.DataFrame:
         })
 
     df = pd.DataFrame(rows)
-    # Drop rows that carry no signal whatsoever
-    metric_cols = ["wealth_gini", "mean_net_wealth", "median_net_wealth",
-                   "top10_wealth_share", "top1_wealth_share",
-                   "bottom50_wealth_share"]
-    df = df.dropna(subset=metric_cols, how="all")
+    # This is a Wealth *Gini* Atlas: rows without a Gini are orphans.
+    # WID country-years that publish only a mean or only a top share but
+    # no Gini are dropped here; they can be reintroduced in v0.2+ as a
+    # separate "moments-only" companion table.
+    df = df.dropna(subset=["wealth_gini"])
     df = df.dropna(subset=["year"])
     df = df.drop_duplicates(subset=["geo_id", "year", "wealth_concept",
                                     "unit_of_analysis", "source_dataset"])
