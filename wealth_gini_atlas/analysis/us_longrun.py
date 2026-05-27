@@ -129,15 +129,18 @@ def build_composite(
     # Top-10 gap: DFA annual minus SCF triennial (NaN in SCF gap years)
     comp["top10_gap"] = comp["top10_share"] - comp["top10_share_scf"]
 
-    # Linearly interpolate mean/median to annual (SCF triennial anchor points)
+    # Linearly interpolate mean/median to annual (SCF triennial anchor points).
+    # Only interpolate BETWEEN anchor points; years beyond the last SCF survey
+    # stay NaN rather than flat-carrying the final value.
+    last_scf_year = int(comp.loc[comp["mean_net_wealth_scf"].notna(), "year"].max())
     for col in ("mean_net_wealth_scf", "median_net_wealth_scf"):
         interp_col = col.replace("_scf", "_interp")
-        comp[interp_col] = (
-            comp.set_index("year")[col]
-                .reindex(range(comp["year"].min(), comp["year"].max() + 1))
-                .interpolate(method="index")
-                .reset_index(drop=True)
-        )
+        s = comp.set_index("year")[col]
+        s_interp = (s.reindex(range(comp["year"].min(), comp["year"].max() + 1))
+                     .interpolate(method="index"))
+        # Zero out anything beyond the last SCF anchor so we don't imply data exists
+        s_interp.loc[s_interp.index > last_scf_year] = float("nan")
+        comp[interp_col] = s_interp.values
 
     # Source attribution flags
     comp["source_shares"]  = "DFA"
