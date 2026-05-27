@@ -1,28 +1,39 @@
 # Changelog
 
-## v0.3.0 -- unreleased
+## v0.3.0
 
 * New sibling product: **Wealth Moments Atlas** (`wealth_moments_atlas_v<v>.csv` /
   `.parquet` / `.manifest.json`) for rows that carry distributional
   moments (mean, median, top shares, negative-wealth share) but no
   headline Gini. Resolves `research_directions.md` item #3
   (previously dropped ~8000 WID country-years).
-* Pipeline now emits BOTH atlases on every `wga build`:
-  the Gini Atlas (Gini required per row) and the Moments Atlas
-  (Gini optional, but at least one other moment required per row).
+* Pipeline emits BOTH atlases on every `wga build`: the Gini Atlas
+  (Gini required per row) and the Moments Atlas (Gini optional, at
+  least one other moment required per row).
 * `harmonize/national.py::split_gini_and_moments` partitions the
   full harmonized frame into the two products.
 * `schema.validate(mode=...)` supports `"gini_atlas"` (default,
-  current behavior) and `"moments_atlas"` (Gini may be null;
-  flags rows with no moments at all).
-* SCF and DFA ingest scaffolds added (`wealth_gini_atlas/ingest/{scf,dfa}.py`):
-  documented expected file paths, harmonizer contracts, and stub
-  `parse()` that raises `NotImplementedError` until raw files land
-  in `data/raw/{scf,dfa}/`. Both sources contribute to the Moments
-  Atlas only.
-* `.gitignore` updated to allow `data/raw/scf/*.xlsx|csv` and
-  `data/raw/dfa/*.zip|csv` through (US Federal Reserve material,
-  US public domain).
+  current behavior) and `"moments_atlas"` (Gini may be null; flags
+  rows with no moments at all).
+* **SCF ingest** (`ingest/scf.py`): reads the interactive chartbook
+  CSVs (`interactive_bulletin_charts_all_{mean,median}.csv` and
+  `_nwcat_mean.csv`). Produces 12 US triennial rows (1989-2022)
+  with mean, median, top-10%, bottom-50% in 2022 USD. Top-10 and
+  bottom-50 shares derived from the five nwcat bucket means using
+  the fixed SCF population fractions (25/25/25/15/10).
+* **DFA ingest** (`ingest/dfa.py`): reads `dfa-networth-shares.csv`,
+  Q4 annual snapshot 1989-2025. Produces 37 US rows with top-1%
+  (TopPt1 + RemainingTop1), top-10% (adds Next9), and bottom-50%
+  shares. Mean / median left null (DFA publishes group-level
+  levels only, no per-household denominator).
+* Both US sources land in the Moments Atlas as `source_dataset =
+  SCF` / `DFA` with `top_tail_flag = survey_only` / `admin_enhanced`
+  respectively. They are complementary: SCF supplies mean / median
+  that DFA lacks; DFA supplies top-1% that the SCF chartbook
+  cannot resolve.
+* `.gitignore` allows `data/raw/{scf,dfa}/*.{csv,xlsx,zip,txt}`
+  through (US Federal Reserve material, US public domain).
+* `METHOD_VERSION` bumped to `wga-0.3`.
 
 ## v0.2.0 -- unreleased
 
