@@ -125,7 +125,7 @@ def _resolve_raw_dir() -> Path:
 
 def fetch() -> Path:
     raw = _resolve_raw_dir()
-    if any(raw.glob("*.csv")) or any(raw.glob("*.xlsx")):
+    if any(raw.glob("*.csv")) or any(raw.glob("*.xlsx")) or any(raw.glob("*.dta")):
         return raw
     raise FileNotFoundError(
         f"No LWS source files found under {raw}.\n\n"
@@ -135,7 +135,7 @@ def fetch() -> Path:
         "  2. Download the ReShare dataset at "
         "https://reshare.ukdataservice.ac.uk/855655/\n"
         "     (LWS Gini Inequality Coefficients 1993-2020)\n"
-        f"  3. Place the CSV in {raw}/\n\n"
+        f"  3. Place the .dta (or .csv / .xlsx) file in {raw}/\n\n"
         "Alternatively, register for LISSY at "
         "https://www.lisdatacenter.org/data-access/lissy/ "
         "and see the module docstring for the expected LISSY output format."
@@ -151,13 +151,20 @@ def parse(raw_dir: Path | None = None) -> pd.DataFrame:
     wealth_gini are required; all others are optional.
     """
     raw = Path(raw_dir) if raw_dir else _resolve_raw_dir()
-    files = sorted(raw.glob("*.csv")) + sorted(raw.glob("*.xlsx"))
+    files = (sorted(raw.glob("*.csv"))
+             + sorted(raw.glob("*.xlsx"))
+             + sorted(raw.glob("*.dta")))
     if not files:
-        raise FileNotFoundError(f"No CSV or XLSX found under {raw}")
+        raise FileNotFoundError(f"No CSV/XLSX/DTA found under {raw}")
 
     src = files[0]
-    df = (pd.read_excel(src) if src.suffix == ".xlsx"
-          else pd.read_csv(src, low_memory=False))
+    log.info("LWS source file: %s", src.name)
+    if src.suffix == ".xlsx":
+        df = pd.read_excel(src)
+    elif src.suffix == ".dta":
+        df = pd.read_stata(src, convert_categoricals=False)
+    else:
+        df = pd.read_csv(src, low_memory=False)
 
     # Normalize column names
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]

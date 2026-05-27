@@ -135,6 +135,28 @@ def test_lws_gini_rescale_100(tmp_path, monkeypatch):
     assert abs(df.iloc[0]["wealth_gini"] - 0.872) < 1e-6
 
 
+def test_lws_dta_format(tmp_path, monkeypatch):
+    """The ReShare LWS Gini archive is distributed as Stata .dta only."""
+    d = tmp_path / "lws"
+    d.mkdir()
+    # Build a small frame and write it as .dta
+    src = pd.DataFrame({
+        "country_code": ["US", "DE", "GB", "FR"],
+        "year":         [2019, 2014, 2018, 2014],
+        "gini_nw":      [0.872, 0.761, 0.647, 0.706],
+        "top10_nw":     [0.738, 0.598, 0.560, 0.555],
+    })
+    src.to_stata(d / "lws-gini.dta", write_index=False)
+    monkeypatch.setenv("WGA_LWS_LOCAL", str(d))
+
+    from wealth_gini_atlas.ingest.lws import harmonize_frame
+    from wealth_gini_atlas.schema import validate
+    df = harmonize_frame()
+    assert set(df["geo_id"]) == {"USA", "DEU", "GBR", "FRA"}
+    assert df["wealth_gini"].between(0, 1).all()
+    assert validate(df, strict=False) == []
+
+
 def test_lws_missing_file(tmp_path, monkeypatch):
     monkeypatch.setenv("WGA_LWS_LOCAL", str(tmp_path / "no-lws"))
     from wealth_gini_atlas.ingest.lws import harmonize_frame

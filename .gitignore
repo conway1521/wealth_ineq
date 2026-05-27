@@ -40,6 +40,7 @@ data/raw/*
 !data/raw/lws/
 !data/raw/lws/*.csv
 !data/raw/lws/*.xlsx
+!data/raw/lws/*.dta
 !data/raw/lws/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
