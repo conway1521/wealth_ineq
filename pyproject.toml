@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wealth-gini-atlas"
-version = "0.2.0"
+version = "0.4.0"
 description = "Open, citable, extensible panel of household net wealth inequality across countries and regions."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Wealth Gini Atlas contributors" }]
-keywords = ["inequality", "wealth", "gini", "economics", "WID", "HFCS", "SCF", "DFA"]
+keywords = ["inequality", "wealth", "gini", "economics", "WID", "HFCS", "SCF", "DFA", "LWS"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",

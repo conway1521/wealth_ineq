@@ -144,8 +144,11 @@ def build_composite(
 
     # Source attribution flags
     comp["source_shares"]  = "DFA"
-    comp["source_moments"] = comp["mean_net_wealth_scf"].apply(
-        lambda v: "SCF" if pd.notna(v) else "SCF_interp"
+    comp["source_moments"] = comp.apply(
+        lambda r: ("SCF" if pd.notna(r["mean_net_wealth_scf"])
+                   else "SCF_interp" if pd.notna(r["mean_net_wealth_interp"])
+                   else "none"),
+        axis=1,
     )
 
     # Reorder columns for readability

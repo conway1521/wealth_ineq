@@ -118,7 +118,12 @@ def test_source_flags(tmp_path):
     """source_shares is always DFA; source_moments reflects SCF availability."""
     comp = build_composite(_make_moments_atlas(tmp_path))
     assert (comp["source_shares"] == "DFA").all()
+    # SCF anchor years (1989, 1992)
     scf_rows = comp[comp["mean_net_wealth_scf"].notna()]
     assert (scf_rows["source_moments"] == "SCF").all()
-    interp_rows = comp[comp["mean_net_wealth_scf"].isna()]
+    # Between anchor points: interpolated (1990, 1991)
+    interp_rows = comp[comp["mean_net_wealth_interp"].notna() & comp["mean_net_wealth_scf"].isna()]
     assert (interp_rows["source_moments"] == "SCF_interp").all()
+    # Post-last-SCF-year (1993-1995): no moments data at all
+    post_rows = comp[comp["mean_net_wealth_interp"].isna()]
+    assert (post_rows["source_moments"] == "none").all()
