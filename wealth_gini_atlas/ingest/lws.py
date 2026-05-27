@@ -83,36 +83,41 @@ from pathlib import Path
 import pandas as pd
 
 from .. import METHOD_VERSION
-from ..harmonize.iso import to_iso3
+from ..harmonize.iso import to_iso3, name_to_iso3
 from ..schema import conform, empty_frame
 
 log = logging.getLogger(__name__)
 
 DEFAULT_RAW_DIR = "data/raw/lws"
 
-# Map possible input column names -> our internal names
+# Map possible input column names -> our internal names.
+# The ReShare LWS Gini archive uses: countries, year, gini_dnw, gini_fa, gini_pr
 _COL_MAP = {
-    # Gini
-    "gini_nw": "wealth_gini", "gini": "wealth_gini",
-    "gini_net_worth": "wealth_gini", "gini_wealth": "wealth_gini",
-    # Top-10 share
-    "top10_nw": "top10_wealth_share", "top10": "top10_wealth_share",
-    "share_top10": "top10_wealth_share", "p90_share": "top10_wealth_share",
-    # Top-1 share
-    "top1_nw": "top1_wealth_share", "top1": "top1_wealth_share",
-    "share_top1": "top1_wealth_share", "p99_share": "top1_wealth_share",
-    # Bottom-50 share
-    "bot50_nw": "bottom50_wealth_share", "bottom50": "bottom50_wealth_share",
-    "share_bot50": "bottom50_wealth_share",
-    # Mean / median
-    "mean_nw": "mean_net_wealth", "mean": "mean_net_wealth",
-    "median_nw": "median_net_wealth", "median": "median_net_wealth",
-    # Country
-    "country_code": "country_code", "iso3": "country_code",
-    "iso2": "country_code", "country": "country_code",
+    # Country (ReShare uses full name in "countries"; LISSY output may use codes)
+    "countries": "country_code",          # ReShare: full English name
+    "country_code": "country_code",
+    "country": "country_code",
+    "iso3": "country_code",
+    "iso2": "country_code",
     "cntry": "country_code",
     # Year
     "year": "year", "survey_year": "year", "ref_year": "year",
+    # Gini -- ReShare primary: gini_dnw (Disposable Net Worth)
+    "gini_dnw": "wealth_gini",            # ReShare Disposable Net Worth Gini
+    "gini_nw": "wealth_gini",             # LISSY / other layouts
+    "gini": "wealth_gini",
+    "gini_net_worth": "wealth_gini",
+    "gini_wealth": "wealth_gini",
+    # Shares (LISSY output; ReShare doesn't include these)
+    "top10_nw": "top10_wealth_share",     "top10": "top10_wealth_share",
+    "share_top10": "top10_wealth_share",  "p90_share": "top10_wealth_share",
+    "top1_nw": "top1_wealth_share",       "top1": "top1_wealth_share",
+    "share_top1": "top1_wealth_share",    "p99_share": "top1_wealth_share",
+    "bot50_nw": "bottom50_wealth_share",  "bottom50": "bottom50_wealth_share",
+    "share_bot50": "bottom50_wealth_share",
+    # Mean / median (LISSY output)
+    "mean_nw": "mean_net_wealth",   "mean": "mean_net_wealth",
+    "median_nw": "median_net_wealth", "median": "median_net_wealth",
 }
 
 
@@ -205,10 +210,12 @@ def harmonize_frame(raw_dir: Path | None = None) -> pd.DataFrame:
 
     rows = []
     for _, r in df.iterrows():
-        iso = to_iso3(str(r["country_code"]))
+        raw_country = str(r["country_code"])
+        # to_iso3 handles alpha-2, alpha-3, and full names (via name_to_iso3
+        # fallback for strings longer than 3 chars).
+        iso = to_iso3(raw_country)
         if iso is None:
-            log.debug("LWS: skipping unrecognized country code %r",
-                      r["country_code"])
+            log.debug("LWS: skipping unrecognized country %r", raw_country)
             continue
         iso3, name = iso
 

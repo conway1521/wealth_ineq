@@ -158,19 +158,67 @@ _ISO3_TO_ISO3: dict[str, tuple[str, str]] = {
     v[0]: v for v in ISO2_TO_ISO3.values()
 }
 
+# Country-name -> (ISO-3, name) for sources that store full names
+# (e.g. LWS stores "United States", "Germany").  Lower-cased for matching.
+_NAME_TO_ISO3: dict[str, tuple[str, str]] = {
+    v[1].lower(): v for v in ISO2_TO_ISO3.values()
+}
+# Extra aliases covering variant spellings that appear in LWS / OECD
+_NAME_ALIASES: dict[str, tuple[str, str]] = {
+    "united states":          ("USA", "United States"),
+    "united states of america": ("USA", "United States"),
+    "germany":                ("DEU", "Germany"),
+    "united kingdom":         ("GBR", "United Kingdom"),
+    "great britain":          ("GBR", "United Kingdom"),
+    "uk":                     ("GBR", "United Kingdom"),
+    "south korea":            ("KOR", "Korea"),
+    "republic of korea":      ("KOR", "Korea"),
+    "korea, republic of":     ("KOR", "Korea"),
+    "slovak republic":        ("SVK", "Slovakia"),
+    "czechia":                ("CZE", "Czechia"),
+    "czech republic":         ("CZE", "Czechia"),
+    "russia":                 ("RUS", "Russian Federation"),
+    "taiwan":                 ("TWN", "Taiwan"),
+    "iran":                   ("IRN", "Iran"),
+    "syria":                  ("SYR", "Syrian Arab Republic"),
+    "bolivia":                ("BOL", "Bolivia"),
+    "tanzania":               ("TZA", "Tanzania"),
+    "moldova":                ("MDA", "Moldova"),
+    "north korea":            ("PRK", "Korea (DPRK)"),
+    "vietnam":                ("VNM", "Viet Nam"),
+    "viet nam":               ("VNM", "Viet Nam"),
+    "laos":                   ("LAO", "Lao PDR"),
+    "congo":                  ("COG", "Congo"),
+    "dr congo":               ("COD", "Congo, Democratic Republic"),
+    "democratic republic of the congo": ("COD", "Congo, Democratic Republic"),
+}
+
+
+def name_to_iso3(name: str) -> tuple[str, str] | None:
+    """Return (ISO-3, English name) from a country's English name, or None."""
+    if not isinstance(name, str):
+        return None
+    key = name.strip().lower()
+    return _NAME_ALIASES.get(key) or _NAME_TO_ISO3.get(key)
+
 
 def to_iso3(code: str) -> tuple[str, str] | None:
     """Return (ISO-3, English name) or None for unmappable / aggregate codes.
 
-    Accepts both ISO-3166-1 alpha-2 (WID) and alpha-3 (OECD, LWS)
-    input. Three-character codes are looked up in the reverse table;
-    two-character codes go through the primary ISO2_TO_ISO3 map.
+    Accepts:
+    * ISO-3166-1 alpha-2 (WID source codes, e.g. "US")
+    * ISO-3166-1 alpha-3 (OECD/LWS country codes, e.g. "USA")
+    * Full English country names (LWS ``countries`` column, e.g. "United States")
     """
     if not isinstance(code, str):
         return None
-    c = code.strip().upper()
-    if c in WID_AGGREGATE_PREFIXES:
+    c = code.strip()
+    cu = c.upper()
+    if cu in WID_AGGREGATE_PREFIXES:
         return None
-    if len(c) == 3:
-        return _ISO3_TO_ISO3.get(c)
-    return ISO2_TO_ISO3.get(c)
+    if len(cu) == 3:
+        return _ISO3_TO_ISO3.get(cu)
+    if len(cu) == 2:
+        return ISO2_TO_ISO3.get(cu)
+    # Longer string -> try name lookup
+    return name_to_iso3(c)

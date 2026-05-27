@@ -135,16 +135,17 @@ def test_lws_gini_rescale_100(tmp_path, monkeypatch):
     assert abs(df.iloc[0]["wealth_gini"] - 0.872) < 1e-6
 
 
-def test_lws_dta_format(tmp_path, monkeypatch):
-    """The ReShare LWS Gini archive is distributed as Stata .dta only."""
+def test_lws_dta_reshare_format(tmp_path, monkeypatch):
+    """ReShare archive: Stata .dta, full country names, gini_dnw column."""
     d = tmp_path / "lws"
     d.mkdir()
-    # Build a small frame and write it as .dta
+    # Mirrors the actual ReShare column layout (countries / year / gini_dnw)
     src = pd.DataFrame({
-        "country_code": ["US", "DE", "GB", "FR"],
-        "year":         [2019, 2014, 2018, 2014],
-        "gini_nw":      [0.872, 0.761, 0.647, 0.706],
-        "top10_nw":     [0.738, 0.598, 0.560, 0.555],
+        "countries": ["United States", "Germany", "United Kingdom", "France"],
+        "year":      [2019, 2014, 2018, 2014],
+        "gini_dnw":  [0.872, 0.761, 0.647, 0.706],
+        "gini_fa":   [0.912, 0.801, 0.711, 0.740],
+        "gini_pr":   [0.650, 0.610, 0.588, 0.601],
     })
     src.to_stata(d / "lws-gini.dta", write_index=False)
     monkeypatch.setenv("WGA_LWS_LOCAL", str(d))
@@ -153,8 +154,22 @@ def test_lws_dta_format(tmp_path, monkeypatch):
     from wealth_gini_atlas.schema import validate
     df = harmonize_frame()
     assert set(df["geo_id"]) == {"USA", "DEU", "GBR", "FRA"}
+    # gini_dnw is the target; gini_fa and gini_pr are ignored
+    assert abs(df.loc[df["geo_id"] == "USA", "wealth_gini"].iloc[0] - 0.872) < 1e-6
     assert df["wealth_gini"].between(0, 1).all()
     assert validate(df, strict=False) == []
+
+
+def test_lws_name_to_iso3():
+    """Country-name -> ISO-3 lookup covers LWS variant spellings."""
+    from wealth_gini_atlas.harmonize.iso import name_to_iso3, to_iso3
+    assert name_to_iso3("United States")[0] == "USA"
+    assert name_to_iso3("Germany")[0] == "DEU"
+    assert name_to_iso3("Slovak Republic")[0] == "SVK"
+    assert name_to_iso3("czech republic")[0] == "CZE"   # case-insensitive
+    assert name_to_iso3("nonexistent country xyz") is None
+    # to_iso3 falls back to name lookup for long strings
+    assert to_iso3("United Kingdom")[0] == "GBR"
 
 
 def test_lws_missing_file(tmp_path, monkeypatch):
