@@ -1,59 +1,35 @@
-"""Distributional Financial Accounts (DFA) ingest -- v0.3 scaffold.
+"""Distributional Financial Accounts (DFA) ingest.
 
-The Federal Reserve Board's DFA splits the Financial Accounts of
-the United States by wealth-percentile bucket at quarterly frequency.
-The published buckets are:
+Source file (Federal Reserve Board, US public domain):
+  data/raw/dfa/dfa-networth-shares.csv
 
-    Top 1%, Next 9% (90th-99th), Next 40% (50th-90th), Bottom 50%
+Download the full DFA dataset ZIP from
+https://www.federalreserve.gov/releases/efa/dataset/dfa.zip
+and unpack it under data/raw/dfa/.
 
-DFA does not publish a Gini coefficient. It can supply:
+DFA publishes quarterly wealth-share decompositions for five
+net-worth percentile buckets:
 
-* Top 1% wealth share         (quarterly)
-* Top 10% wealth share        (sum of top1 + next9)
-* Bottom 50% wealth share     (quarterly)
-* Mean wealth per percentile-bucket (level, USD)
+  TopPt1          top 0.1 %     -> contributes to top_1%
+  RemainingTop1   next 0.9 %    -> contributes to top_1%
+  Next9           next 9 %      -> contributes to top_10%
+  Next40          next 40 %     (50th-90th)
+  Bottom50        bottom 50 %   -> bottom50_wealth_share
 
-DFA's appeal vs SCF: it is anchored to Financial Accounts aggregates
-(``admin_enhanced`` top tail), it is quarterly rather than triennial,
-and it stretches back to 1989Q3.
+Mapping to release schema
+-------------------------
+  top1_share   = (TopPt1 + RemainingTop1) / 100
+  top10_share  = (TopPt1 + RemainingTop1 + Next9) / 100
+  bottom50     = Bottom50 / 100
+  mean_net_wealth is not published per household; left null here --
+    use the SCF source_dataset row for mean and median.
 
-This module ingests DFA into the Moments Atlas only -- no Gini.
+Quarterly -> annual: we collapse to Q4 snapshots (year-end) for a
+unique (geo_id, year, source_dataset) key. DFA starts 1989Q3;
+first Q4 is 1989Q4.
 
-Source file we expect
----------------------
-
-The DFA dataset is published as a single ZIP at
-
-    https://www.federalreserve.gov/releases/efa/dataset/dfa.zip
-
-which unpacks to ``dfa-networth-levels-detail.csv`` and a few
-related files. Place either the ZIP or the unpacked CSV(s) under
-``data/raw/dfa/``.
-
-Harmonization contract
-----------------------
-
-* ``unit_of_analysis = "household"`` (DFA scales SCF micro to the
-  Flow-of-Funds aggregates).
-* ``equivalence_scale = "none"``.
-* ``currency = "USD"``.
-* ``source_dataset = "DFA"``.
-* ``source_priority = "tier1"`` -- DFA is the canonical
-  admin-enhanced US wealth-distribution series.
-* ``comparability_tier = "B"`` (different concept boundaries than
-  HFCS / SCF chartbook).
-* ``top_tail_flag = "admin_enhanced"``.
-* ``observed_vs_modeled = "imported"``.
-
-Quarterly -> annual: we collapse to year-end (Q4) snapshots so each
-geo-year-source row remains unique.
-
-Implementation status
----------------------
-
-Scaffold. ``harmonize_frame()`` raises ``FileNotFoundError`` if no
-DFA source is on disk. Parser is filled in once a real file is
-committed.
+Unit of analysis: "household" (DFA scales SCF micro to Flow of Funds).
+Currency: the shares are dimensionless; levels are not used here.
 """
 
 from __future__ import annotations
@@ -69,7 +45,6 @@ from ..schema import conform, empty_frame
 
 log = logging.getLogger(__name__)
 
-
 DEFAULT_RAW_DIR = "data/raw/dfa"
 
 
@@ -80,29 +55,53 @@ def _resolve_raw_dir() -> Path:
     return Path(__file__).resolve().parents[2] / DEFAULT_RAW_DIR
 
 
-def fetch(*_args, **_kwargs) -> Path:
+def fetch() -> Path:
     raw = _resolve_raw_dir()
-    if any(raw.glob("dfa*.csv")) or any(raw.glob("dfa*.zip")):
+    if (raw / "dfa-networth-shares.csv").exists():
         return raw
     raise FileNotFoundError(
         f"No DFA source files found under {raw}.\n"
-        "Expected: DFA dataset ZIP or unpacked CSV(s) from "
-        "https://www.federalreserve.gov/releases/efa/dataset/dfa.zip\n"
-        "See wealth_gini_atlas/ingest/dfa.py docstring for details."
+        "Expected: dfa-networth-shares.csv from "
+        "https://www.federalreserve.gov/releases/efa/dataset/dfa.zip"
     )
 
 
 def parse(raw_dir: Path | None = None) -> pd.DataFrame:
-    """Parse DFA source files into a tidy frame keyed by (year,).
+    """Parse DFA networth-shares CSV into a tidy annual (Q4) frame.
 
-    Returns columns: year, top1_share, top10_share, bottom50_share,
-    mean_net_wealth (annualized to Q4).
+    Returns columns: year, top1_share, top10_share, bottom50_share.
     """
-    raise NotImplementedError(
-        "DFA parse() not yet implemented. Commit dfa.zip (or unpacked "
-        "CSVs) to data/raw/dfa/ and the parser will be wired in "
-        "against the real file structure."
-    )
+    raw = Path(raw_dir) if raw_dir else _resolve_raw_dir()
+    df = pd.read_csv(raw / "dfa-networth-shares.csv")
+
+    # Keep Q4 only
+    df = df[df["Date"].str.endswith("Q4")].copy()
+    df["year"] = df["Date"].str[:4].astype(int)
+
+    # Pivot: one row per (Date, year), categories become columns
+    pivot = (df.pivot_table(index=["Date", "year"],
+                            columns="Category",
+                            values="Net worth",
+                            aggfunc="first")
+               .reset_index())
+
+    # Shares are expressed as percentages in the source; divide by 100.
+    rows = []
+    for _, r in pivot.iterrows():
+        top1 = (r.get("TopPt1", float("nan"))
+                + r.get("RemainingTop1", float("nan"))) / 100
+        top10 = (r.get("TopPt1", float("nan"))
+                 + r.get("RemainingTop1", float("nan"))
+                 + r.get("Next9", float("nan"))) / 100
+        bot50 = r.get("Bottom50", float("nan")) / 100
+        rows.append({
+            "year": int(r["year"]),
+            "top1_share": round(top1, 6),
+            "top10_share": round(top10, 6),
+            "bottom50_share": round(bot50, 6),
+        })
+
+    return pd.DataFrame(rows)
 
 
 def harmonize_frame(raw_dir: Path | None = None) -> pd.DataFrame:
@@ -118,16 +117,16 @@ def harmonize_frame(raw_dir: Path | None = None) -> pd.DataFrame:
             "geo_id": "USA",
             "geo_name": "United States",
             "geo_level": "country",
-            "year": int(r["year"]) if pd.notna(r.get("year")) else pd.NA,
+            "year": int(r["year"]),
             "wealth_concept": "net_wealth",
             "wealth_gini": pd.NA,
             "wealth_gini_raw": pd.NA,
             "negative_wealth_share": pd.NA,
-            "mean_net_wealth": r.get("mean_net_wealth"),
-            "median_net_wealth": pd.NA,
-            "top10_wealth_share": r.get("top10_share"),
-            "top1_wealth_share":  r.get("top1_share"),
-            "bottom50_wealth_share": r.get("bottom50_share"),
+            "mean_net_wealth":     pd.NA,
+            "median_net_wealth":   pd.NA,
+            "top10_wealth_share":  r["top10_share"],
+            "top1_wealth_share":   r["top1_share"],
+            "bottom50_wealth_share": r["bottom50_share"],
             "unit_of_analysis": "household",
             "equivalence_scale": "none",
             "currency": "USD",
@@ -137,7 +136,12 @@ def harmonize_frame(raw_dir: Path | None = None) -> pd.DataFrame:
             "observed_vs_modeled": "imported",
             "top_tail_flag": "admin_enhanced",
             "method_version": METHOD_VERSION,
-            "notes": "Imported from DFA dataset.zip (Q4 annual snapshot).",
+            "notes": (
+                "DFA dfa-networth-shares.csv; Q4 annual snapshot. "
+                "top1 = TopPt1 + RemainingTop1; "
+                "top10 adds Next9. Shares dimensionless (source in %). "
+                "mean/median null -- use SCF source_dataset row."
+            ),
         })
-    df = pd.DataFrame(rows).dropna(subset=["year"])
-    return conform(df)
+
+    return conform(pd.DataFrame(rows).dropna(subset=["year"]))

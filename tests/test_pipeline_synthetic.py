@@ -21,15 +21,15 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "data" / "fixtures"
 
 def test_end_to_end_with_fixtures(tmp_path, monkeypatch):
     monkeypatch.setenv("WGA_WID_LOCAL", str(FIXTURE_DIR))
-    # Scope this test to the WID synthetic fixtures only. Without this
-    # the pipeline would also pick up the real HFCS workbooks that ship
-    # under data/raw/hfcs/.
+    # Isolate to WID synthetic fixtures: point HFCS, SCF, DFA at
+    # non-existent paths so their ingests are skipped cleanly.
     monkeypatch.setenv("WGA_HFCS_LOCAL", str(tmp_path / "no-hfcs.csv"))
+    monkeypatch.setenv("WGA_SCF_LOCAL", str(tmp_path / "no-scf"))
+    monkeypatch.setenv("WGA_DFA_LOCAL", str(tmp_path / "no-dfa"))
 
     df, moments = build_release()
-    # Synthetic WID fixtures have a Gini for every row so the moments
-    # atlas is empty; the v0.3+ pipeline still returns it as the second
-    # element of the tuple.
+    # Synthetic WID fixtures have a Gini for every row; SCF and DFA
+    # are bypassed, so the moments atlas is empty.
     assert moments.empty
     assert not df.empty
 

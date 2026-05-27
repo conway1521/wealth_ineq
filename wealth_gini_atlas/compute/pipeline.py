@@ -115,24 +115,21 @@ def _build_hfcs() -> pd.DataFrame:
 
 
 def _build_scf_dfa() -> pd.DataFrame:
-    """SCF + DFA contribute to the Moments Atlas only.
+    """SCF + DFA rows for the Moments Atlas (US household moments)."""
+    from ..ingest import dfa as dfa_ingest
+    from ..ingest import scf as scf_ingest
 
-    Stubs return empty frames; they will be replaced by real ingests
-    once the raw source files land in data/raw/scf/ and data/raw/dfa/.
-    """
     try:
-        from ..ingest import scf as scf_ingest
         scf_df = scf_ingest.harmonize_frame()
         log.info("SCF moments rows: %d", len(scf_df))
-    except (FileNotFoundError, NotImplementedError) as exc:
+    except FileNotFoundError as exc:
         log.info("SCF source not available, skipping: %s", exc)
         scf_df = empty_frame()
 
     try:
-        from ..ingest import dfa as dfa_ingest
         dfa_df = dfa_ingest.harmonize_frame()
         log.info("DFA moments rows: %d", len(dfa_df))
-    except (FileNotFoundError, NotImplementedError) as exc:
+    except FileNotFoundError as exc:
         log.info("DFA source not available, skipping: %s", exc)
         dfa_df = empty_frame()
 
