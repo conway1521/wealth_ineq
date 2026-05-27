@@ -31,6 +31,16 @@ data/raw/*
 !data/raw/dfa/*.zip
 !data/raw/dfa/*.csv
 !data/raw/dfa/.gitkeep
+# OECD Wealth Distribution dataset (OECD, public).
+!data/raw/oecd/
+!data/raw/oecd/*.csv
+!data/raw/oecd/*.xlsx
+!data/raw/oecd/.gitkeep
+# LWS Gini series (UK Data Service / LIS; check licence before committing).
+!data/raw/lws/
+!data/raw/lws/*.csv
+!data/raw/lws/*.xlsx
+!data/raw/lws/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
 

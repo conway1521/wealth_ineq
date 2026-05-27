@@ -10,6 +10,7 @@ from pathlib import Path
 from . import __version__
 from .compute.pipeline import build_release
 from .ingest import hfcs as hfcs_ingest
+from .ingest import oecd as oecd_ingest
 from .ingest import wid as wid_ingest
 from .release.build import write as write_release
 from .release.build import write_moments as write_moments_release
@@ -30,13 +31,43 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         try:
             path = hfcs_ingest.fetch()
         except FileNotFoundError as exc:
-            # The exception's message is the user-facing instruction.
             print(str(exc))
             return 1
         log.info("HFCS source ready at %s", path)
         return 0
+    if args.source == "oecd":
+        try:
+            path = oecd_ingest.fetch()
+        except FileNotFoundError as exc:
+            print(str(exc))
+            return 1
+        log.info("OECD Wealth dataset ready at %s", path)
+        return 0
+    if args.source == "lws":
+        from .ingest import lws as lws_ingest
+        try:
+            path = lws_ingest.fetch()
+        except FileNotFoundError as exc:
+            print(str(exc))
+            return 1
+        log.info("LWS source ready at %s", path)
+        return 0
     log.error("Unknown source: %s", args.source)
     return 2
+
+
+def cmd_longrun(args: argparse.Namespace) -> int:
+    """Build and write the US long-run composite series."""
+    from .analysis.us_longrun import build_composite
+    df = build_composite(args.moments_path or None)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if str(out).endswith(".parquet"):
+        df.to_parquet(out, index=False)
+    else:
+        df.to_csv(out, index=False)
+    log.info("US long-run series: %d rows -> %s", len(df), out)
+    return 0
 
 
 def cmd_build(args: argparse.Namespace) -> int:
@@ -110,9 +141,20 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pf = sub.add_parser("fetch", help="Download raw upstream data")
-    pf.add_argument("source", choices=["wid", "hfcs"], help="Source to fetch")
-    pf.add_argument("--countries", help="Comma-separated ISO-2 codes (default: all, WID only)")
+    pf.add_argument("source", choices=["wid", "hfcs", "oecd", "lws"],
+                    help="Source to fetch")
+    pf.add_argument("--countries",
+                    help="Comma-separated ISO-2 codes (default: all, WID only)")
     pf.set_defaults(func=cmd_fetch)
+
+    pl = sub.add_parser("longrun",
+                        help="Build the US long-run composite series")
+    pl.add_argument("--moments-path", default=None,
+                    help="Path to wealth_moments_atlas_v*.parquet "
+                         "(default: latest under data/release/)")
+    pl.add_argument("--out", default="data/release/us_longrun.csv",
+                    help="Output path (.csv or .parquet)")
+    pl.set_defaults(func=cmd_longrun)
 
     pb = sub.add_parser("build", help="Build the release tables")
     pb.add_argument("--raw-dir", help="Override raw data directory")

@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.4.0
+
+* **OECD Wealth Distribution ingest** (`ingest/oecd.py`):
+  Reads the OECD "WEALTH" SDMX-CSV dataset. `wga fetch oecd` downloads
+  automatically; manual fallback documented in module docstring.
+  Supplies Gini, top-10%, top-1%, bottom-50%, mean, median for ~30
+  OECD countries, filling gaps not covered by HFCS (AU, CA, JP, KR,
+  GB, NZ, etc.). `source_priority = "tier2"` so WID/HFCS/LWS tier-1
+  rows win when all three overlap.
+* **LWS ingest scaffold** (`ingest/lws.py`):
+  Three documented access paths (ReShare CSV, LISSY, DART).
+  Flexible column normalizer handles both ReShare and custom LISSY
+  output layouts, including 0–100 Gini rescaling. `source_priority =
+  "tier1"`, `comparability_tier = "A"` -- the gold-standard
+  microdata-based series for ~24 countries.
+* **`harmonize/iso.py`**: `to_iso3` now accepts ISO-3166-1 alpha-3
+  input (OECD, LWS) as well as alpha-2 (WID). Reverse lookup table
+  built at import time.
+* **US long-run composite series** (`analysis/us_longrun.py` +
+  `wga longrun`): Stitches DFA (annual top-1%/top-10%/bottom-50%)
+  and SCF (triennial mean/median) into a single analysis-ready annual
+  frame 1989–present. Mean/median linearly interpolated to annual
+  frequency; raw triennial anchor points preserved as separate columns.
+  Cross-check column `top10_gap = DFA - SCF` for methodology drift.
+* Pipeline: OECD and LWS slots wired into `build_release`; both skip
+  gracefully when source files absent.
+* CLI: `wga fetch {oecd,lws}`, `wga longrun [--moments-path] [--out]`.
+* `METHOD_VERSION` bumped to `wga-0.4`.
+
 ## v0.3.0
 
 * New sibling product: **Wealth Moments Atlas** (`wealth_moments_atlas_v<v>.csv` /

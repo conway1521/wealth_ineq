@@ -153,11 +153,24 @@ WID_AGGREGATE_PREFIXES = {"WO", "XA", "XB", "XC", "XF", "XL", "XM",
                           "QT", "QU", "QV", "QW", "QX", "QY", "QZ"}
 
 
-def to_iso3(code2: str) -> tuple[str, str] | None:
-    """Return (ISO-3, English name) or None for unmappable / aggregate codes."""
-    if not isinstance(code2, str):
+# Reverse lookup: ISO-3 -> (ISO-3, name), built once at import time.
+_ISO3_TO_ISO3: dict[str, tuple[str, str]] = {
+    v[0]: v for v in ISO2_TO_ISO3.values()
+}
+
+
+def to_iso3(code: str) -> tuple[str, str] | None:
+    """Return (ISO-3, English name) or None for unmappable / aggregate codes.
+
+    Accepts both ISO-3166-1 alpha-2 (WID) and alpha-3 (OECD, LWS)
+    input. Three-character codes are looked up in the reverse table;
+    two-character codes go through the primary ISO2_TO_ISO3 map.
+    """
+    if not isinstance(code, str):
         return None
-    code = code2.strip().upper()
-    if code in WID_AGGREGATE_PREFIXES:
+    c = code.strip().upper()
+    if c in WID_AGGREGATE_PREFIXES:
         return None
-    return ISO2_TO_ISO3.get(code)
+    if len(c) == 3:
+        return _ISO3_TO_ISO3.get(c)
+    return ISO2_TO_ISO3.get(c)

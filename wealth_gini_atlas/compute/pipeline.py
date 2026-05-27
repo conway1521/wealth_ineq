@@ -114,6 +114,30 @@ def _build_hfcs() -> pd.DataFrame:
     return df
 
 
+def _build_oecd() -> pd.DataFrame:
+    """OECD Wealth Distribution rows for the Gini Atlas."""
+    from ..ingest import oecd as oecd_ingest
+    try:
+        df = oecd_ingest.harmonize_frame()
+        log.info("OECD Gini Atlas rows: %d", len(df))
+        return df
+    except FileNotFoundError as exc:
+        log.info("OECD source not available, skipping: %s", exc)
+        return empty_frame()
+
+
+def _build_lws() -> pd.DataFrame:
+    """LWS microdata-based Gini rows for the Gini Atlas."""
+    from ..ingest import lws as lws_ingest
+    try:
+        df = lws_ingest.harmonize_frame()
+        log.info("LWS Gini Atlas rows: %d", len(df))
+        return df
+    except FileNotFoundError as exc:
+        log.info("LWS source not available, skipping: %s", exc)
+        return empty_frame()
+
+
 def _build_scf_dfa() -> pd.DataFrame:
     """SCF + DFA rows for the Moments Atlas (US household moments)."""
     from ..ingest import dfa as dfa_ingest
@@ -149,13 +173,15 @@ def build_release(raw_dir: Path | None = None) -> tuple[pd.DataFrame, pd.DataFra
     wid_gini, wid_moments = harm.split_gini_and_moments(wid_all)
     log.info("WID rows: %d with Gini, %d moments-only", len(wid_gini), len(wid_moments))
 
-    # HFCS always carries a Gini -> Gini Atlas only.
+    # HFCS, OECD, LWS -> Gini Atlas only.
     hfcs_df = _build_hfcs()
+    oecd_df = _build_oecd()
+    lws_df  = _build_lws()
 
-    # SCF + DFA -> Moments Atlas only (when implemented).
+    # SCF + DFA -> Moments Atlas only.
     sd_df = _build_scf_dfa()
 
-    gini_parts = [p for p in (wid_gini, hfcs_df) if not p.empty]
+    gini_parts    = [p for p in (wid_gini, hfcs_df, oecd_df, lws_df) if not p.empty]
     moments_parts = [p for p in (wid_moments, sd_df) if not p.empty]
 
     gini_atlas = (pd.concat(gini_parts, ignore_index=True).drop_duplicates(
