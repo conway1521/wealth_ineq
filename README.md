@@ -3,7 +3,7 @@
 An open, citable, versioned panel of household **net wealth inequality** across
 countries and (eventually) subnational geographies.
 
-**v0.4.0** · 10,783 rows · 213 countries · 1800–2025 · CC BY 4.0
+**v0.4.0** · 10,783 rows · 213 countries · 1800-2025 · CC BY 4.0
 
 The project is wealth-first, harmonization-first, and conservative on definitions:
 we ingest already-authoritative wealth inequality series (WID, HFCS, SCF, DFA, LWS),
@@ -12,7 +12,7 @@ comparability metadata, and publish citable CSV + Parquet releases.
 
 Companion product: the **Wealth Moments Atlas** (7,923 rows · 53 countries) ships
 alongside and contains distributional moments (top shares, mean, median) for rows
-where no headline Gini is available — useful for macro/HANK calibration.
+where no headline Gini is available, useful for macro/HANK calibration.
 
 ## Documentation
 
@@ -73,7 +73,7 @@ wga validate data/release/wealth_gini_atlas_v0.4.0.csv
 # OECD wealth distribution data (fetches via SDMX API)
 wga fetch oecd
 
-# LWS (Luxembourg Wealth Study) — download Gini_LWS.dta from ReShare
+# LWS (Luxembourg Wealth Study), download Gini_LWS.dta from ReShare
 # and place it in data/raw/lws/ before running wga build
 # https://reshare.ukdataservice.ac.uk/855655/
 ```
@@ -116,7 +116,7 @@ Release artifacts live under [`data/release/`](data/release/).
 | `wealth_gini_atlas_v0.4.0.parquet` | Parquet | 233 KB |
 | `wealth_moments_atlas_v0.4.0.csv` | CSV | 1.1 MB |
 | `wealth_moments_atlas_v0.4.0.parquet` | Parquet | 74 KB |
-| `us_longrun.csv` | CSV | — |
+| `us_longrun.csv` | CSV |, |
 
 ## License
 
