@@ -116,7 +116,7 @@ Release artifacts live under [`data/release/`](data/release/).
 | `wealth_gini_atlas_v0.4.0.parquet` | Parquet | 233 KB |
 | `wealth_moments_atlas_v0.4.0.csv` | CSV | 1.1 MB |
 | `wealth_moments_atlas_v0.4.0.parquet` | Parquet | 74 KB |
-| `us_longrun.csv` | CSV |, |
+| `us_longrun.csv` | CSV | - |
 
 ## License
 
