@@ -45,56 +45,6 @@ where no headline Gini is available, useful for macro/HANK calibration.
 | v0.4 | OECD + LWS + US long-run | LWS + OECD | shipped |
 | v1.0 | EU NUTS2 + US states | modeled (Tier C) | planned |
 
-## Install
-
-```bash
-pip install -e ".[dev]"
-```
-
-## Build the release
-
-```bash
-# 1. Pull WID bulk CSVs into data/raw/wid/ (requires network to wid.world)
-wga fetch wid
-
-# 2. Build both release products into data/release/
-wga build --out-dir data/release
-
-# 3. Build the US long-run composite (reads the Moments Atlas parquet)
-wga longrun --out data/release/us_longrun.csv
-
-# 4. Validate the Gini Atlas
-wga validate data/release/wealth_gini_atlas_v0.4.0.csv
-```
-
-### Optional additional sources
-
-```bash
-# OECD wealth distribution data (fetches via SDMX API)
-wga fetch oecd
-
-# LWS (Luxembourg Wealth Study), download Gini_LWS.dta from ReShare
-# and place it in data/raw/lws/ before running wga build
-# https://reshare.ukdataservice.ac.uk/855655/
-```
-
-If your environment cannot reach `wid.world`, download the WID bulk zip separately,
-unzip it, and point `WGA_WID_LOCAL` at the directory:
-
-```bash
-export WGA_WID_LOCAL=/path/to/unzipped/wid
-wga build --out-dir data/release
-```
-
-## Run the tests
-
-```bash
-pytest
-```
-
-The test suite runs the full ingest → harmonize → release pipeline against bundled
-fixture data; no network access required. 60 tests pass.
-
 ## Schema
 
 See [`docs/codebook.yaml`](docs/codebook.yaml) for the machine-readable spec.
